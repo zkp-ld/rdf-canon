@@ -2,13 +2,14 @@ use crate::rdf::Quad;
 use std::collections::{BTreeMap, HashMap};
 
 pub type BnodeID = String;
+pub type HexHash = String;
 
 /// **4.3 Canonicalization State**
 pub struct CanonicalizationState {
     /// **blank node to quads map**
     ///   A map that relates a blank node identifier to the quads
     ///   in which they appear in the input dataset.
-    blank_node_to_quads_map: HashMap<BnodeID, Quad>,
+    blank_node_to_quads_map: HashMap<BnodeID, Vec<Quad>>,
 
     /// **hash to blank nodes map**
     ///   A map that relates a hash to a list of blank node identifiers.
@@ -46,13 +47,17 @@ pub struct IdentifierIssuer {
 }
 
 impl IdentifierIssuer {
-    pub fn new(identifier_prefix: String) -> IdentifierIssuer {
+    pub fn new(identifier_prefix: &str) -> IdentifierIssuer {
         let issued_identifiers_map: BTreeMap<BnodeID, BnodeID> = BTreeMap::new();
         IdentifierIssuer {
-            identifier_prefix,
+            identifier_prefix: identifier_prefix.to_string(),
             identifier_counter: 0,
             issued_identifiers_map,
         }
+    }
+
+    pub fn increment(&mut self) {
+        self.identifier_counter += 1
     }
 }
 
@@ -89,7 +94,7 @@ pub fn issue_identifier(
         .insert(existing_identifier, issued_identifier.clone());
 
     // 4) Increment identifier counter.
-    identifier_issuer.identifier_counter += 1;
+    identifier_issuer.increment();
 
     // 5) Return issued identifier.
     issued_identifier
@@ -105,10 +110,54 @@ pub fn issue_identifier(
 pub fn hash_first_degree_quads(
     canonicalization_state: CanonicalizationState,
     reference_blank_node_identifier: BnodeID,
-) {
+) -> Option<HexHash> {
     /// 1) Initialize nquads to an empty list. It will be used to store
     /// quads in canonical n-quads form.
-    let nquads: Vec<Quad> = Vec::new();
+    let nquads: Vec<String> = Vec::new();
 
-    ()
+    /// 2) Get the list of quads quads from the map entry for reference
+    /// blank node identifier in the blank node to quads map.
+    let quads = canonicalization_state
+        .blank_node_to_quads_map
+        .get(&reference_blank_node_identifier)?;
+
+    // Dummy
+    Some("a0b0c0".to_string())
+}
+
+#[test]
+fn test_issue_identifier() {
+    let mut canonical_issuer = IdentifierIssuer::new("c14n");
+    assert_eq!(
+        issue_identifier(&mut canonical_issuer, "b0".to_string()),
+        "c14n0".to_string()
+    );
+    assert_eq!(
+        issue_identifier(&mut canonical_issuer, "b1".to_string()),
+        "c14n1".to_string()
+    );
+    assert_eq!(
+        issue_identifier(&mut canonical_issuer, "b99".to_string()),
+        "c14n2".to_string()
+    );
+    assert_eq!(
+        issue_identifier(&mut canonical_issuer, "xyz".to_string()),
+        "c14n3".to_string()
+    );
+    assert_eq!(
+        issue_identifier(&mut canonical_issuer, "xyz".to_string()),
+        "c14n3".to_string()
+    );
+    assert_eq!(
+        issue_identifier(&mut canonical_issuer, "b99".to_string()),
+        "c14n2".to_string()
+    );
+    assert_eq!(
+        issue_identifier(&mut canonical_issuer, "b1".to_string()),
+        "c14n1".to_string()
+    );
+    assert_eq!(
+        issue_identifier(&mut canonical_issuer, "b0".to_string()),
+        "c14n0".to_string()
+    );
 }
