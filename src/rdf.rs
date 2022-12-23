@@ -1,110 +1,63 @@
 /// RDF data interfaces based on
 /// [RDF/JS: Data model specification](https://rdf.js.org/data-model-spec/)
 
-/// An abstract interface
-pub trait Term {
-    /// Returns true when called with parameter other on an object term
-    /// if all of the conditions below hold:
-    /// - other is neither null nor undefined;
-    /// - term.termType is the same string as other.termType;
-    /// - other follows the additional constraints of the specific Term
-    ///   interface implemented by term (e.g., NamedNode, Literal, …);
-    /// otherwise, it returns false.
-    fn equals(&self, other: &Self) -> bool;
-}
+// /// An abstract interface
+// pub trait Term {
+//     /// Returns true when called with parameter other on an object term
+//     /// if all of the conditions below hold:
+//     /// - other is neither null nor undefined;
+//     /// - term.termType is the same string as other.termType;
+//     /// - other follows the additional constraints of the specific Term
+//     ///   interface implemented by term (e.g., NamedNode, Literal, …);
+//     /// otherwise, it returns false.
+//     fn equals(&self, other: &Self) -> bool;
+// }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct NamedNode {
     /// The IRI of the named node (example: "http://example.org/resource").
-    value: String,
+    pub value: String,
 }
 
-impl Term for NamedNode {
-    /// Returns true if all general Term.equals conditions hold and
-    /// term.value is the same string as other.value; otherwise, it
-    /// returns false.
-    fn equals(&self, other: &Self) -> bool {
-        self.value == other.value
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct BlankNode {
     /// Blank node name as a string, without any serialization specific
     /// prefixes, e.g. when parsing, if the data was sourced from Turtle,
     /// remove "_:", if it was sourced from RDF/XML, do not change the
     /// blank node name (example: "blank3").
-    value: String,
+    pub value: String,
 }
 
-impl Term for BlankNode {
-    /// Returns true if all general Term.equals conditions hold and
-    /// term.value is the same string as other.value; otherwise, it
-    /// returns false.
-    fn equals(&self, other: &Self) -> bool {
-        self.value == other.value
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Literal {
     /// The text value, unescaped, without language or type (example: "Brad
     /// Pitt").
-    value: String,
+    pub value: String,
     /// The language as lowercase BCP-47 [BCP47] string (examples: "en",
     /// "en-gb") or an empty string if the literal has no language.
-    language: String,
+    pub language: Option<String>,
     /// A NamedNode whose IRI represents the datatype of the literal.
-    datatype: NamedNode,
+    pub datatype: Option<NamedNode>,
 }
 
-impl Term for Literal {
-    /// Returns true if all general Term.equals conditions hold, term.value
-    /// is the same string as other.value, term.language is the same string
-    /// as other.language, and term.datatype.equals(other.datatype) evaluates
-    /// to true; otherwise, it returns false.
-    fn equals(&self, other: &Self) -> bool {
-        self.value == other.value
-            && self.language == other.language
-            && self.datatype.equals(&other.datatype)
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Variable {
     /// The name of the variable without leading "?" (example: "a").
-    value: String,
-}
-
-impl Term for Variable {
-    /// Returns true if all general Term.equals conditions hold and
-    /// term.value is the same string as other.value; otherwise, it
-    /// returns false.
-    fn equals(&self, other: &Self) -> bool {
-        self.value == other.value
-    }
+    pub value: String,
 }
 
 /// An instance of DefaultGraph represents the default graph. It's only
 /// allowed to assign a DefaultGraph to the graph property of a Quad.
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct DefaultGraph {
     // Contains an empty string as constant value.
     // NOTE: We omit the empty string `value` here.
     // _value: String,
 }
 
-impl Term for DefaultGraph {
-    /// Returns true if all general Term.equals conditions hold;
-    /// otherwise, it returns false.
-    fn equals(&self, _other: &Self) -> bool {
-        true
-    }
-}
-
 /// The subject, which is a NamedNode, BlankNode, Variable or Quad.
 /// NOTE: We do not currently support Quad as a subject here.
-#[derive(Clone, Debug)]
+#[derive(Eq, Clone, Debug)]
 pub enum Subject {
     NamedNode(NamedNode),
     BlankNode(BlankNode),
@@ -112,36 +65,36 @@ pub enum Subject {
     // Quad(Quad),
 }
 
-impl Term for Subject {
-    fn equals(&self, other: &Self) -> bool {
+impl PartialEq for Subject {
+    fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::NamedNode(left), Self::NamedNode(right)) => left.equals(right),
-            (Self::BlankNode(left), Self::BlankNode(right)) => left.equals(right),
-            (Self::Variable(left), Self::Variable(right)) => left.equals(right),
+            (Self::NamedNode(left), Self::NamedNode(right)) => left == right,
+            (Self::BlankNode(left), Self::BlankNode(right)) => left == right,
+            (Self::Variable(left), Self::Variable(right)) => left == right,
             _ => false,
         }
     }
 }
 
 /// The predicate, which is a NamedNode or Variable.
-#[derive(Clone, Debug)]
+#[derive(Eq, Clone, Debug)]
 pub enum Predicate {
     NamedNode(NamedNode),
     Variable(Variable),
 }
 
-impl Term for Predicate {
-    fn equals(&self, other: &Self) -> bool {
+impl PartialEq for Predicate {
+    fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::NamedNode(left), Self::NamedNode(right)) => left.equals(right),
-            (Self::Variable(left), Self::Variable(right)) => left.equals(right),
+            (Self::NamedNode(left), Self::NamedNode(right)) => left == right,
+            (Self::Variable(left), Self::Variable(right)) => left == right,
             _ => false,
         }
     }
 }
 
 /// The object, which is a NamedNode, Literal, BlankNode or Variable.
-#[derive(Clone, Debug)]
+#[derive(Eq, Clone, Debug)]
 pub enum Object {
     NamedNode(NamedNode),
     Literal(Literal),
@@ -149,13 +102,13 @@ pub enum Object {
     Variable(Variable),
 }
 
-impl Term for Object {
-    fn equals(&self, other: &Self) -> bool {
+impl PartialEq for Object {
+    fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::NamedNode(left), Self::NamedNode(right)) => left.equals(right),
-            (Self::Literal(left), Self::Literal(right)) => left.equals(right),
-            (Self::BlankNode(left), Self::BlankNode(right)) => left.equals(right),
-            (Self::Variable(left), Self::Variable(right)) => left.equals(right),
+            (Self::NamedNode(left), Self::NamedNode(right)) => left == right,
+            (Self::Literal(left), Self::Literal(right)) => left == right,
+            (Self::BlankNode(left), Self::BlankNode(right)) => left == right,
+            (Self::Variable(left), Self::Variable(right)) => left == right,
             _ => false,
         }
     }
@@ -163,7 +116,7 @@ impl Term for Object {
 
 /// The named graph, which is a DefaultGraph, NamedNode, BlankNode or
 /// Variable.
-#[derive(Clone, Debug)]
+#[derive(Eq, Clone, Debug)]
 pub enum Graph {
     DefaultGraph(DefaultGraph),
     NamedNode(NamedNode),
@@ -171,49 +124,33 @@ pub enum Graph {
     Variable(Variable),
 }
 
-impl Term for Graph {
-    fn equals(&self, other: &Self) -> bool {
+impl PartialEq for Graph {
+    fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::DefaultGraph(left), Self::DefaultGraph(right)) => left.equals(right),
-            (Self::NamedNode(left), Self::NamedNode(right)) => left.equals(right),
-            (Self::BlankNode(left), Self::BlankNode(right)) => left.equals(right),
-            (Self::Variable(left), Self::Variable(right)) => left.equals(right),
+            (Self::DefaultGraph(left), Self::DefaultGraph(right)) => left == right,
+            (Self::NamedNode(left), Self::NamedNode(right)) => left == right,
+            (Self::BlankNode(left), Self::BlankNode(right)) => left == right,
+            (Self::Variable(left), Self::Variable(right)) => left == right,
             _ => false,
         }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Quad {
     // Contains an empty string as constant value.
     // NOTE: We omit the empty string `value` here.
     // value: String,
     /// The subject, which is a NamedNode, BlankNode, Variable or Quad.
     /// NOTE: We do not currently support Quad as a subject here
-    subject: Subject,
+    pub subject: Subject,
     /// The predicate, which is a NamedNode or Variable.
-    predicate: Predicate,
+    pub predicate: Predicate,
     /// The object, which is a NamedNode, Literal, BlankNode or Variable.
-    object: Object,
+    pub object: Object,
     /// The named graph, which is a DefaultGraph, NamedNode, BlankNode or
     /// Variable.
-    graph: Graph,
-}
-
-impl Term for Quad {
-    /// Returns true when called with parameter other on an object quad if all of the conditions below hold:
-    /// - other is neither null nor undefined;
-    /// - quad.subject.equals(other.subject) evaluates to true;
-    /// - quad.predicate.equals(other.predicate) evaluates to true;
-    /// - quad.object.equals(other.object) evaluates to a true;
-    /// - quad.graph.equals(other.graph) evaluates to a true;
-    /// otherwise, it returns false.
-    fn equals(&self, other: &Self) -> bool {
-        self.subject.equals(&other.subject)
-            && self.predicate.equals(&other.predicate)
-            && self.object.equals(&other.object)
-            && self.graph.equals(&other.graph)
-    }
+    pub graph: Graph,
 }
 
 const DEFAULT_BLANK_NODE_PREFIX: &str = "b";
@@ -270,20 +207,21 @@ impl DataFactory {
         match datatype {
             Some(datatype) => Literal {
                 value: value.to_string(),
-                datatype: datatype.clone(),
-                language: "".to_string(),
+                datatype: Some(datatype.clone()),
+                language: None,
             },
             None => match language {
                 Some(language) => Literal {
                     value: value.to_string(),
-                    language: language.to_string(),
-                    datatype: self
-                        .named_node("http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"),
+                    language: Some(language.to_string()),
+                    datatype: Some(
+                        self.named_node("http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"),
+                    ),
                 },
                 None => Literal {
                     value: value.to_string(),
-                    language: "".to_string(),
-                    datatype: self.named_node("http://www.w3.org/2001/XMLSchema#string"),
+                    language: None,
+                    datatype: Some(self.named_node("http://www.w3.org/2001/XMLSchema#string")),
                 },
             },
         }
@@ -332,9 +270,9 @@ fn gen_named_node() {
     assert_eq!(named_node1.value, "http://example.org/foo");
     assert_eq!(named_node2.value, "urn:example:bar");
     assert_eq!(named_node3.value, "http://example.org/foo");
-    assert!(!named_node1.equals(&named_node2));
-    assert!(!named_node2.equals(&named_node3));
-    assert!(named_node3.equals(&named_node1));
+    assert_ne!(named_node1, named_node2);
+    assert_ne!(named_node2, named_node3);
+    assert_eq!(named_node3, named_node1);
 }
 
 #[test]
@@ -350,12 +288,12 @@ fn gen_blank_node() {
     assert_eq!(blank_node3.value, "foo");
     assert_eq!(blank_node4.value, "bar");
     assert_eq!(blank_node5.value, "foo");
-    assert!(!blank_node1.equals(&blank_node2));
-    assert!(!blank_node2.equals(&blank_node3));
-    assert!(!blank_node3.equals(&blank_node1));
-    assert!(!blank_node3.equals(&blank_node4));
-    assert!(!blank_node4.equals(&blank_node5));
-    assert!(blank_node3.equals(&blank_node5));
+    assert_ne!(blank_node1, blank_node2);
+    assert_ne!(blank_node2, blank_node3);
+    assert_ne!(blank_node3, blank_node1);
+    assert_ne!(blank_node3, blank_node4);
+    assert_ne!(blank_node4, blank_node5);
+    assert_eq!(blank_node3, blank_node5);
 }
 
 #[test]
@@ -366,7 +304,12 @@ fn gen_literal() {
     let literal3 = df.literal("foo", None, None);
     let literal4_en = df.literal("foo", None, Some("en"));
     let literal4_ja = df.literal("あいうえお", None, Some("ja"));
-    let literal5_en = df.literal(
+    let literal5 = df.literal(
+        "123",
+        Some(&df.named_node("http://www.w3.org/2001/XMLSchema#integer")),
+        None,
+    );
+    let literal6 = df.literal(
         "123",
         Some(&df.named_node("http://www.w3.org/2001/XMLSchema#integer")),
         None,
@@ -376,12 +319,13 @@ fn gen_literal() {
     assert_eq!(literal3.value, "foo");
     assert_eq!(literal4_en.value, "foo");
     assert_eq!(literal4_ja.value, "あいうえお");
-    assert_eq!(literal5_en.value, "123");
-    assert!(!literal1.equals(&literal2));
-    assert!(!literal2.equals(&literal3));
-    assert!(literal3.equals(&literal1));
-    assert!(!literal4_en.equals(&literal4_ja));
-    assert!(!literal4_en.equals(&literal4_ja));
+    assert_eq!(literal5.value, "123");
+    assert_ne!(literal1, literal2);
+    assert_ne!(literal2, literal3);
+    assert_eq!(literal3, literal1);
+    assert_ne!(literal4_en, literal4_ja);
+    assert_ne!(literal4_en, literal4_ja);
+    assert_eq!(literal5, literal6);
 }
 
 #[test]
@@ -393,9 +337,9 @@ fn gen_variable() {
     assert_eq!(variable1.value, "foo");
     assert_eq!(variable2.value, "bar");
     assert_eq!(variable3.value, "foo");
-    assert!(!variable1.equals(&variable2));
-    assert!(!variable2.equals(&variable3));
-    assert!(variable3.equals(&variable1));
+    assert_ne!(variable1, variable2);
+    assert_ne!(variable2, variable3);
+    assert_eq!(variable3, variable1);
 }
 
 #[test]
@@ -403,7 +347,7 @@ fn gen_default_graph() {
     let df = DataFactory::new();
     let default_graph1 = df.default_graph();
     let default_graph2 = df.default_graph();
-    assert!(default_graph1.equals(&default_graph2));
+    assert_eq!(default_graph1, default_graph2);
 }
 
 #[test]
@@ -442,12 +386,12 @@ fn gen_quad() {
     let graph5: Graph = Graph::NamedNode(df.named_node("http://example.org/graph1"));
     let quad5: Quad = df.quad(&subject5, &predicate5, &object5, Some(&graph5));
 
-    assert!(!quad1.equals(&quad2));
-    assert!(!quad2.equals(&quad3));
-    assert!(!quad3.equals(&quad4));
-    assert!(!quad4.equals(&quad5));
-    assert!(quad1.equals(&quad5));
-    assert!(!quad1.subject.equals(&quad2.subject));
-    assert!(quad1.subject.equals(&quad3.subject));
-    assert!(quad4.graph.equals(&Graph::DefaultGraph(df.default_graph())));
+    assert_ne!(quad1, quad2);
+    assert_ne!(quad2, quad3);
+    assert_ne!(quad3, quad4);
+    assert_ne!(quad4, quad5);
+    assert_eq!(quad1, quad5);
+    assert_ne!(quad1.subject, quad2.subject);
+    assert_eq!(quad1.subject, quad3.subject);
+    assert_eq!(quad4.graph, Graph::DefaultGraph(df.default_graph()));
 }
