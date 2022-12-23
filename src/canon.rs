@@ -1,4 +1,5 @@
-use crate::rdf::Quad;
+use crate::nquads::serialize;
+use crate::rdf::{BlankNode, Graph, Object, Quad, Subject};
 use std::collections::{BTreeMap, HashMap};
 
 pub type BnodeID = String;
@@ -19,6 +20,18 @@ pub struct CanonicalizationState {
     ///   An identifier issuer, initialized with the prefix c14n, for
     ///   issuing canonical blank node identifiers.
     canonical_issuer: IdentifierIssuer,
+}
+
+const DEFAULT_CANONICAL_IDENTIFER_PREFIX: &str = "c14n";
+
+impl CanonicalizationState {
+    pub fn new() -> CanonicalizationState {
+        CanonicalizationState {
+            blank_node_to_quads_map: HashMap::new(),
+            hash_to_blank_node_map: HashMap::new(),
+            canonical_issuer: IdentifierIssuer::new(DEFAULT_CANONICAL_IDENTIFER_PREFIX),
+        }
+    }
 }
 
 /// **4.4 Blank Node Identifier Issuer State**
@@ -111,18 +124,95 @@ pub fn hash_first_degree_quads(
     canonicalization_state: CanonicalizationState,
     reference_blank_node_identifier: BnodeID,
 ) -> Option<HexHash> {
-    /// 1) Initialize nquads to an empty list. It will be used to store
-    /// quads in canonical n-quads form.
-    let nquads: Vec<String> = Vec::new();
+    // 1) Initialize nquads to an empty list. It will be used to store
+    // quads in canonical n-quads form.
+    // let nquads: Vec<String> = Vec::new();
 
-    /// 2) Get the list of quads quads from the map entry for reference
-    /// blank node identifier in the blank node to quads map.
+    // 2) Get the list of quads quads from the map entry for reference
+    // blank node identifier in the blank node to quads map.
     let quads = canonicalization_state
         .blank_node_to_quads_map
         .get(&reference_blank_node_identifier)?;
 
+    // 3) For each quad quad in quads:
+    let mut nquads = quads
+        .iter()
+        .map(|quad| {
+            // 3.1) Serialize the quad in canonical n-quads form with the following special rule:
+            // 3.1.1) If any component in quad is an blank node, then serialize it using a special
+            // identifier as follows:
+            let subject = match &quad.subject {
+                Subject::BlankNode(n) => {
+                    // 3.1.1.1) If the blank node's existing blank node identifier matches the reference
+                    // blank node identifier then use the blank node identifier a, otherwise, use the blank
+                    // node identifier z.
+                    Subject::BlankNode(if n.value == reference_blank_node_identifier {
+                        BlankNode {
+                            value: "a".to_string(),
+                        }
+                    } else {
+                        BlankNode {
+                            value: "z".to_string(),
+                        }
+                    })
+                }
+                s => s.clone(),
+            };
+            // 3.1.1) If any component in quad is an blank node, then serialize it using a special
+            // identifier as follows:
+            let object = match &quad.object {
+                Object::BlankNode(n) => {
+                    // 3.1.1.1) If the blank node's existing blank node identifier matches the reference
+                    // blank node identifier then use the blank node identifier a, otherwise, use the blank
+                    // node identifier z.
+                    Object::BlankNode(if n.value == reference_blank_node_identifier {
+                        BlankNode {
+                            value: "a".to_string(),
+                        }
+                    } else {
+                        BlankNode {
+                            value: "z".to_string(),
+                        }
+                    })
+                }
+                s => s.clone(),
+            };
+            // 3.1.1) If any component in quad is an blank node, then serialize it using a special
+            // identifier as follows:
+            let graph = match &quad.graph {
+                Graph::BlankNode(n) => {
+                    // 3.1.1.1) If the blank node's existing blank node identifier matches the reference
+                    // blank node identifier then use the blank node identifier a, otherwise, use the blank
+                    // node identifier z.
+                    Graph::BlankNode(if n.value == reference_blank_node_identifier {
+                        BlankNode {
+                            value: "a".to_string(),
+                        }
+                    } else {
+                        BlankNode {
+                            value: "z".to_string(),
+                        }
+                    })
+                }
+                s => s.clone(),
+            };
+            let predicate = quad.predicate.clone();
+
+            serialize(Quad {
+                subject,
+                predicate,
+                object,
+                graph,
+            })
+        })
+        .collect::<Option<Vec<String>>>()?;
+
+    // 4) Sort nquads in Unicode code point order.
+    // TODO: check if it is actually Unicode code point order
+    nquads.sort();
+
     // Dummy
-    Some("a0b0c0".to_string())
+    Some(nquads.join("\n"))
 }
 
 #[test]
@@ -160,4 +250,10 @@ fn test_issue_identifier() {
         issue_identifier(&mut canonical_issuer, "b0".to_string()),
         "c14n0".to_string()
     );
+}
+
+#[test]
+fn test_hash_first_degree_quads() {
+    let state = CanonicalizationState::new();
+    // TODO
 }
