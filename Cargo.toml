@@ -1,0 +1,11 @@
+[package]
+name = "rdf-canon"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+base16ct = "0.1.1"
+rdf = "0.1.4"
+sha2 = "0.10.6"
