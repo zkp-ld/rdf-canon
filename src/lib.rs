@@ -2,49 +2,13 @@ use base16ct::lower::encode_str;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 mod canon;
+mod nquads;
 mod rdf;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use canon::{issue_identifier, IdentifierIssuer};
-
-    #[test]
-    fn test_issue_identifier() {
-        let mut canonical_issuer = IdentifierIssuer::new("c14n".to_string());
-        assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b0".to_string()),
-            "c14n0".to_string()
-        );
-        assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b1".to_string()),
-            "c14n1".to_string()
-        );
-        assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b99".to_string()),
-            "c14n2".to_string()
-        );
-        assert_eq!(
-            issue_identifier(&mut canonical_issuer, "xyz".to_string()),
-            "c14n3".to_string()
-        );
-        assert_eq!(
-            issue_identifier(&mut canonical_issuer, "xyz".to_string()),
-            "c14n3".to_string()
-        );
-        assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b99".to_string()),
-            "c14n2".to_string()
-        );
-        assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b1".to_string()),
-            "c14n1".to_string()
-        );
-        assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b0".to_string()),
-            "c14n0".to_string()
-        );
-    }
 
     #[test]
     fn test_hash() {
