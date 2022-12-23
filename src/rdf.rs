@@ -171,7 +171,7 @@ impl DataFactory {
     }
 
     /// Returns a new instance of NamedNode.
-    fn named_node(&self, value: &str) -> NamedNode {
+    pub fn named_node(&self, value: &str) -> NamedNode {
         NamedNode {
             value: value.to_string(),
         }
@@ -179,7 +179,7 @@ impl DataFactory {
 
     /// Returns a new instance of BlankNode. If the value parameter is undefined
     /// a new identifier for the blank node is generated for each call.
-    fn blank_node(&mut self, value: Option<&str>) -> BlankNode {
+    pub fn blank_node(&mut self, value: Option<&str>) -> BlankNode {
         match value {
             Some(v) => BlankNode {
                 value: v.to_string(),
@@ -198,7 +198,7 @@ impl DataFactory {
     /// Returns a new instance of Literal. If languageOrDatatype is a NamedNode, then it is used
     /// for the value of datatype. Otherwise languageOrDatatype is used for the value of language.
     /// NOTE: languageOrDatatype is split into datatype and language
-    fn literal(
+    pub fn literal(
         &self,
         value: &str,
         datatype: Option<&NamedNode>,
@@ -228,20 +228,20 @@ impl DataFactory {
     }
 
     /// Returns a new instance of Variable. This method is optional.
-    fn variable(&self, value: &str) -> Variable {
+    pub fn variable(&self, value: &str) -> Variable {
         Variable {
             value: value.to_string(),
         }
     }
 
     /// Returns an instance of DefaultGraph.
-    fn default_graph(&self) -> DefaultGraph {
+    pub fn default_graph(&self) -> DefaultGraph {
         DefaultGraph {}
     }
 
     /// Returns a new instance of Quad. If graph is undefined or null it MUST set graph
     /// to a DefaultGraph.
-    fn quad(
+    pub fn quad(
         &self,
         subject: &Subject,
         predicate: &Predicate,
@@ -377,7 +377,7 @@ fn gen_quad() {
     let predicate4: Predicate =
         Predicate::NamedNode(df.named_node("http://example.org/predicate4"));
     let object4: Object = Object::NamedNode(df.named_node("http://example.org/object4"));
-    let quad4: Quad = df.quad(&subject1, &predicate3, &object3, None);
+    let quad4: Quad = df.quad(&subject1, &predicate4, &object4, None);
 
     let subject5: Subject = Subject::NamedNode(df.named_node("http://example.org/subject1"));
     let predicate5: Predicate =
