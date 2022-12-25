@@ -1,4 +1,7 @@
-use crate::rdf::{BlankNode, Graph, Literal, NamedNode, Object, Predicate, Quad, Subject};
+use crate::rdf::{
+    BlankNode, DefaultGraph, Graph, GraphTrait, Literal, NamedNode, NewQuad, Object, ObjectTrait,
+    Predicate, PredicateTrait, Quad, Subject, SubjectTrait, Variable,
+};
 
 pub fn serialize(quad: Quad) -> Option<String> {
     let subject = match quad.subject {
@@ -48,6 +51,62 @@ pub fn serialize_literal(l: Literal) -> String {
         // If there is no datatype IRI and no language tag, the datatype is xsd:string.
         (None, None) => value,
     }
+}
+
+pub trait SerializeNQuads {
+    fn serialize(&self) -> String;
+}
+impl SerializeNQuads for NamedNode {
+    fn serialize(&self) -> String {
+        format!("<{}>", self.value)
+    }
+}
+impl SerializeNQuads for BlankNode {
+    fn serialize(&self) -> String {
+        format!("_:{}", self.value)
+    }
+}
+impl SerializeNQuads for Literal {
+    fn serialize(&self) -> String {
+        // TODO: escape characters if necessary
+        let value = &self.value;
+        match (&self.language, &self.datatype) {
+            // If present, the language tag is preceded by a '@' (U+0040).
+            (Some(lang), _) => format!("\"{}\"@{}", value, lang),
+            // If there is no language tag, there may be a datatype IRI, preceded
+            // by '^^' (U+005E U+005E).
+            (None, Some(dt)) => format!("\"{}\"^^<{}>", value, dt.value),
+            // If there is no datatype IRI and no language tag, the datatype is xsd:string.
+            (None, None) => value.to_string(),
+        }
+    }
+}
+impl SerializeNQuads for Variable {
+    fn serialize(&self) -> String {
+        format!("?{}", self.value) // TODO: fix it
+    }
+}
+impl SerializeNQuads for DefaultGraph {
+    fn serialize(&self) -> String {
+        "".to_string()
+    }
+}
+
+pub fn serialize_new<S, P, O, G>(quad: NewQuad<S, P, O, G>) -> Option<String>
+where
+    S: SubjectTrait + SerializeNQuads,
+    P: PredicateTrait + SerializeNQuads,
+    O: ObjectTrait + SerializeNQuads,
+    G: GraphTrait + SerializeNQuads,
+{
+    let subject = quad.subject.serialize();
+    let predicate = quad.predicate.serialize();
+    let object = quad.object.serialize();
+    let graph = quad.graph.serialize();
+    let result = format!("{} {} {} {}", subject, predicate, object, graph)
+        .trim()
+        .to_string();
+    Some(format!("{} .\n", result))
 }
 
 #[test]
@@ -102,4 +161,38 @@ fn test_serialize_quads() {
         "<http://example.org/subject1> <http://example.org/predicate4> <http://example.org/object4> _:b2 .\n".to_string());
     assert_eq!(serialize(quad5).unwrap(),
         "<http://example.org/あいうえお> <http://example.org/predicate1> <http://example.org/object1> <http://example.org/graph1> .\n".to_string());
+}
+
+#[test]
+fn test_serialize_quads_new() {
+    let subject1 = NamedNode::new("http://example.org/subject1");
+    let predicate1 = NamedNode::new("http://example.org/predicate1");
+    let predicate2 = NamedNode::new("http://example.org/predicate2");
+    let object1 = NamedNode::new("http://example.org/object1");
+    let object2 = Literal::new(
+        "100",
+        Some(&NamedNode::new("http://www.w3.org/2001/XMLSchema#integer")),
+        None,
+    );
+    let graph1 = NamedNode::new("http://example.org/graph1");
+    let bnode1 = BlankNode::new(None);
+    let bnode2 = BlankNode::new(None);
+    let default_graph = DefaultGraph::new();
+
+    let quad1 = NewQuad::new(&subject1, &predicate1, &object1, &graph1);
+    let quad2 = NewQuad::new(&bnode1, &predicate2, &bnode2, &default_graph);
+    let quad3 = NewQuad::new(&bnode1, &predicate2, &object2, &default_graph);
+
+    assert_eq!(serialize_new(quad1).unwrap(),
+        "<http://example.org/subject1> <http://example.org/predicate1> <http://example.org/object1> <http://example.org/graph1> .\n".to_string());
+    assert_eq!(
+        serialize_new(quad2).unwrap(),
+        format!(
+            "{} <http://example.org/predicate2> {} .\n",
+            &bnode1.serialize(),
+            &bnode2.serialize(),
+        )
+    );
+    assert_eq!(serialize_new(quad3).unwrap(),
+        format!("{} <http://example.org/predicate2> \"100\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n", &bnode1.serialize()));
 }

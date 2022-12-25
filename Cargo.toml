@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 base16ct = "0.1.1"
+nanoid = "0.4.0"
 rdf = "0.1.4"
 sha2 = "0.10.6"
