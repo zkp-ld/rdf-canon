@@ -153,9 +153,6 @@ pub struct Quad {
     pub graph: Graph,
 }
 
-const DEFAULT_BLANK_NODE_PREFIX: &str = "b";
-const DEFAULT_BLANK_NODE_COUNTER: usize = 0;
-
 #[derive(Debug)]
 pub struct DataFactory {
     blank_node_prefix: String,
@@ -163,10 +160,13 @@ pub struct DataFactory {
 }
 
 impl DataFactory {
+    const DEFAULT_BLANK_NODE_PREFIX: &str = "b";
+    const DEFAULT_BLANK_NODE_COUNTER: usize = 0;
+
     pub fn new() -> DataFactory {
         DataFactory {
-            blank_node_prefix: DEFAULT_BLANK_NODE_PREFIX.to_string(),
-            blank_node_counter: DEFAULT_BLANK_NODE_COUNTER,
+            blank_node_prefix: Self::DEFAULT_BLANK_NODE_PREFIX.to_string(),
+            blank_node_counter: Self::DEFAULT_BLANK_NODE_COUNTER,
         }
     }
 

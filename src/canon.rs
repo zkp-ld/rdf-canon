@@ -22,14 +22,14 @@ pub struct CanonicalizationState {
     canonical_issuer: IdentifierIssuer,
 }
 
-const DEFAULT_CANONICAL_IDENTIFER_PREFIX: &str = "c14n";
-
 impl CanonicalizationState {
+    const DEFAULT_CANONICAL_IDENTIFER_PREFIX: &str = "c14n";
+    
     pub fn new() -> CanonicalizationState {
         CanonicalizationState {
             blank_node_to_quads_map: HashMap::new(),
             hash_to_blank_node_map: HashMap::new(),
-            canonical_issuer: IdentifierIssuer::new(DEFAULT_CANONICAL_IDENTIFER_PREFIX),
+            canonical_issuer: IdentifierIssuer::new(Self::DEFAULT_CANONICAL_IDENTIFER_PREFIX),
         }
     }
 }
