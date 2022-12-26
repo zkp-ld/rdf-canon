@@ -1,20 +1,19 @@
-use crate::nquads::serialize;
+use crate::nquads::SerializeNQuads;
 use crate::rdf::{BlankNode, Graph, Object, Quad, Subject};
+use base16ct::lower::encode_str;
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
-
-pub type BnodeID = String;
-pub type HexHash = String;
 
 /// **4.3 Canonicalization State**
 pub struct CanonicalizationState {
     /// **blank node to quads map**
     ///   A map that relates a blank node identifier to the quads
     ///   in which they appear in the input dataset.
-    blank_node_to_quads_map: HashMap<BnodeID, Vec<Quad>>,
+    blank_node_to_quads_map: HashMap<String, Vec<Quad>>,
 
     /// **hash to blank nodes map**
     ///   A map that relates a hash to a list of blank node identifiers.
-    hash_to_blank_node_map: HashMap<String, Vec<BnodeID>>,
+    hash_to_blank_node_map: HashMap<String, Vec<String>>,
 
     /// **canonical issuer**
     ///   An identifier issuer, initialized with the prefix c14n, for
@@ -24,7 +23,7 @@ pub struct CanonicalizationState {
 
 impl CanonicalizationState {
     const DEFAULT_CANONICAL_IDENTIFER_PREFIX: &str = "c14n";
-    
+
     pub fn new() -> CanonicalizationState {
         CanonicalizationState {
             blank_node_to_quads_map: HashMap::new(),
@@ -32,9 +31,33 @@ impl CanonicalizationState {
             canonical_issuer: IdentifierIssuer::new(Self::DEFAULT_CANONICAL_IDENTIFER_PREFIX),
         }
     }
+
+    fn update_blank_node_to_quads_map(&mut self, dataset: &[Quad]) {
+        for quad in dataset.iter() {
+            if let Subject::BlankNode(n) = &quad.subject {
+                self.blank_node_to_quads_map
+                    .entry(n.value.clone())
+                    .or_insert_with(Vec::<Quad>::new)
+                    .push(quad.clone());
+            }
+            if let Object::BlankNode(n) = &quad.object {
+                self.blank_node_to_quads_map
+                    .entry(n.value.clone())
+                    .or_insert_with(Vec::<Quad>::new)
+                    .push(quad.clone());
+            }
+            if let Graph::BlankNode(n) = &quad.graph {
+                self.blank_node_to_quads_map
+                    .entry(n.value.clone())
+                    .or_insert_with(Vec::<Quad>::new)
+                    .push(quad.clone());
+            }
+        }
+    }
 }
 
 /// **4.4 Blank Node Identifier Issuer State**
+/// During the canonicalization algorithm, it is sometimes necessary to issue new identifiers to blank nodes. The Issue Identifier algorithm uses an identifier issuer to accomplish this task. The information an identifier issuer needs to keep track of is described below.
 pub struct IdentifierIssuer {
     /// **identifier prefix**
     ///   The identifier prefix is a string that is used at the
@@ -56,12 +79,12 @@ pub struct IdentifierIssuer {
     ///   identifiers, to prevent issuance of more than one new identifier
     ///   per existing identifier, and to allow blank nodes to be
     ///   reassigned identifiers some time after issuance.
-    issued_identifiers_map: BTreeMap<BnodeID, BnodeID>,
+    issued_identifiers_map: BTreeMap<String, String>,
 }
 
 impl IdentifierIssuer {
     pub fn new(identifier_prefix: &str) -> IdentifierIssuer {
-        let issued_identifiers_map: BTreeMap<BnodeID, BnodeID> = BTreeMap::new();
+        let issued_identifiers_map = BTreeMap::<String, String>::new();
         IdentifierIssuer {
             identifier_prefix: identifier_prefix.to_string(),
             identifier_counter: 0,
@@ -82,7 +105,7 @@ impl IdentifierIssuer {
 ///   isomorphic to others in the dataset.
 pub fn issue_identifier(
     identifier_issuer: &mut IdentifierIssuer,
-    existing_identifier: BnodeID,
+    existing_identifier: String,
 ) -> String {
     // 1) If there is a map entry for existing identifier in issued identifiers
     // map of I, return it.
@@ -118,12 +141,12 @@ pub fn issue_identifier(
 ///   quads in a dataset in which that blank node is a component. If the
 ///   hash uniquely identifies that blank node, no further examination is
 ///   necessary. Otherwise, a hash will be created for the blank node using
-///   the algorithm in 4.9 Hash N-Degree Quads invoked via
+///   the algorithm in 4.9 Hash N-Degree Quads inHvoked via
 ///   4.5 Canonicalization Algorithm.
 pub fn hash_first_degree_quads(
-    canonicalization_state: CanonicalizationState,
-    reference_blank_node_identifier: BnodeID,
-) -> Option<HexHash> {
+    canonicalization_state: &CanonicalizationState,
+    reference_blank_node_identifier: &String,
+) -> Option<String> {
     // 1) Initialize nquads to an empty list. It will be used to store
     // quads in canonical n-quads form.
     // let nquads: Vec<String> = Vec::new();
@@ -132,7 +155,7 @@ pub fn hash_first_degree_quads(
     // blank node identifier in the blank node to quads map.
     let quads = canonicalization_state
         .blank_node_to_quads_map
-        .get(&reference_blank_node_identifier)?;
+        .get(reference_blank_node_identifier)?;
 
     // 3) For each quad quad in quads:
     let mut nquads = quads
@@ -142,118 +165,226 @@ pub fn hash_first_degree_quads(
             // 3.1.1) If any component in quad is an blank node, then serialize it using a special
             // identifier as follows:
             let subject = match &quad.subject {
-                Subject::BlankNode(n) => {
-                    // 3.1.1.1) If the blank node's existing blank node identifier matches the reference
-                    // blank node identifier then use the blank node identifier a, otherwise, use the blank
-                    // node identifier z.
-                    Subject::BlankNode(if n.value == reference_blank_node_identifier {
-                        BlankNode {
-                            value: "a".to_string(),
-                        }
-                    } else {
-                        BlankNode {
-                            value: "z".to_string(),
-                        }
-                    })
+                Subject::BlankNode(bnode) => {
+                    Subject::BlankNode(replace_bnid(bnode, reference_blank_node_identifier))
                 }
                 s => s.clone(),
             };
             // 3.1.1) If any component in quad is an blank node, then serialize it using a special
             // identifier as follows:
             let object = match &quad.object {
-                Object::BlankNode(n) => {
-                    // 3.1.1.1) If the blank node's existing blank node identifier matches the reference
-                    // blank node identifier then use the blank node identifier a, otherwise, use the blank
-                    // node identifier z.
-                    Object::BlankNode(if n.value == reference_blank_node_identifier {
-                        BlankNode {
-                            value: "a".to_string(),
-                        }
-                    } else {
-                        BlankNode {
-                            value: "z".to_string(),
-                        }
-                    })
+                Object::BlankNode(bnode) => {
+                    Object::BlankNode(replace_bnid(bnode, reference_blank_node_identifier))
                 }
                 s => s.clone(),
             };
             // 3.1.1) If any component in quad is an blank node, then serialize it using a special
             // identifier as follows:
             let graph = match &quad.graph {
-                Graph::BlankNode(n) => {
-                    // 3.1.1.1) If the blank node's existing blank node identifier matches the reference
-                    // blank node identifier then use the blank node identifier a, otherwise, use the blank
-                    // node identifier z.
-                    Graph::BlankNode(if n.value == reference_blank_node_identifier {
-                        BlankNode {
-                            value: "a".to_string(),
-                        }
-                    } else {
-                        BlankNode {
-                            value: "z".to_string(),
-                        }
-                    })
+                Graph::BlankNode(bnode) => {
+                    Graph::BlankNode(replace_bnid(bnode, reference_blank_node_identifier))
                 }
                 s => s.clone(),
             };
             let predicate = quad.predicate.clone();
 
-            serialize(Quad {
-                subject,
-                predicate,
-                object,
-                graph,
-            })
+            Quad::new(&subject, &predicate, &object, &graph).serialize()
         })
-        .collect::<Option<Vec<String>>>()?;
+        .collect::<Vec<String>>();
+
+    // 3.1.1.1) If the blank node's existing blank node identifier matches the reference
+    // blank node identifier then use the blank node identifier a, otherwise, use the blank
+    // node identifier z.
+    fn replace_bnid(bnode: &BlankNode, reference_blank_node_identifier: &String) -> BlankNode {
+        if bnode.value == *reference_blank_node_identifier {
+            BlankNode {
+                value: "a".to_string(),
+            }
+        } else {
+            BlankNode {
+                value: "z".to_string(),
+            }
+        }
+    }
 
     // 4) Sort nquads in Unicode code point order.
-    // TODO: check if it is actually Unicode code point order
+    // TODO: check if `sort()` here is actually sorting in Unicode code point order
     nquads.sort();
 
-    // Dummy
-    Some(nquads.join("\n"))
+    println!("[debug] nquads: {}", nquads.join(""));
+
+    // 5) Return the hash that results from passing the sorted and concatenated
+    // nquads through the hash algorithm.
+    let hash = Sha256::digest(nquads.join(""));
+    const HASH_LEN: usize = 32;
+    const HASH_BUF_LEN: usize = HASH_LEN * 2;
+    let mut buf = [0u8; HASH_BUF_LEN];
+    let hex_hash = encode_str(&hash, &mut buf).unwrap();
+    Some(hex_hash.to_string())
 }
 
-#[test]
-fn test_issue_identifier() {
-    let mut canonical_issuer = IdentifierIssuer::new("c14n");
-    assert_eq!(
-        issue_identifier(&mut canonical_issuer, "b0".to_string()),
-        "c14n0".to_string()
-    );
-    assert_eq!(
-        issue_identifier(&mut canonical_issuer, "b1".to_string()),
-        "c14n1".to_string()
-    );
-    assert_eq!(
-        issue_identifier(&mut canonical_issuer, "b99".to_string()),
-        "c14n2".to_string()
-    );
-    assert_eq!(
-        issue_identifier(&mut canonical_issuer, "xyz".to_string()),
-        "c14n3".to_string()
-    );
-    assert_eq!(
-        issue_identifier(&mut canonical_issuer, "xyz".to_string()),
-        "c14n3".to_string()
-    );
-    assert_eq!(
-        issue_identifier(&mut canonical_issuer, "b99".to_string()),
-        "c14n2".to_string()
-    );
-    assert_eq!(
-        issue_identifier(&mut canonical_issuer, "b1".to_string()),
-        "c14n1".to_string()
-    );
-    assert_eq!(
-        issue_identifier(&mut canonical_issuer, "b0".to_string()),
-        "c14n0".to_string()
-    );
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rdf::{DefaultGraph, NamedNode, Predicate};
 
-#[test]
-fn test_hash_first_degree_quads() {
-    let state = CanonicalizationState::new();
-    // TODO
+    #[test]
+    fn test_issue_identifier() {
+        let mut canonical_issuer = IdentifierIssuer::new("c14n");
+        assert_eq!(
+            issue_identifier(&mut canonical_issuer, "b0".to_string()),
+            "c14n0".to_string()
+        );
+        assert_eq!(
+            issue_identifier(&mut canonical_issuer, "b1".to_string()),
+            "c14n1".to_string()
+        );
+        assert_eq!(
+            issue_identifier(&mut canonical_issuer, "b99".to_string()),
+            "c14n2".to_string()
+        );
+        assert_eq!(
+            issue_identifier(&mut canonical_issuer, "xyz".to_string()),
+            "c14n3".to_string()
+        );
+        assert_eq!(
+            issue_identifier(&mut canonical_issuer, "xyz".to_string()),
+            "c14n3".to_string()
+        );
+        assert_eq!(
+            issue_identifier(&mut canonical_issuer, "b99".to_string()),
+            "c14n2".to_string()
+        );
+        assert_eq!(
+            issue_identifier(&mut canonical_issuer, "b1".to_string()),
+            "c14n1".to_string()
+        );
+        assert_eq!(
+            issue_identifier(&mut canonical_issuer, "b0".to_string()),
+            "c14n0".to_string()
+        );
+    }
+
+    #[test]
+    fn test_hash_first_degree_quads_unique_hashes() {
+        let mut state = CanonicalizationState::new();
+
+        let e0 = BlankNode::new(None);
+        let e1 = BlankNode::new(None);
+        let p = NamedNode::new("http://example.com/#p");
+        let q = NamedNode::new("http://example.com/#q");
+        let r = NamedNode::new("http://example.com/#r");
+        let s = NamedNode::new("http://example.com/#s");
+        let t = NamedNode::new("http://example.com/#t");
+        let u = NamedNode::new("http://example.com/#u");
+        let default_graph = DefaultGraph::new();
+        let input_dataset = vec![
+            Quad::new(
+                &Subject::NamedNode(p.clone()),
+                &Predicate::NamedNode(q.clone()),
+                &Object::BlankNode(e0.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::NamedNode(p.clone()),
+                &Predicate::NamedNode(r.clone()),
+                &Object::BlankNode(e1.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e0.clone()),
+                &Predicate::NamedNode(s.clone()),
+                &Object::NamedNode(u.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e1.clone()),
+                &Predicate::NamedNode(t.clone()),
+                &Object::NamedNode(u.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+        ];
+
+        state.update_blank_node_to_quads_map(&input_dataset);
+
+        let hash_e0 = hash_first_degree_quads(&state, &e0.value);
+        assert_eq!(
+            hash_e0.unwrap(),
+            "21d1dd5ba21f3dee9d76c0c00c260fa6f5d5d65315099e553026f4828d0dc77a".to_string()
+        );
+        let hash_e1 = hash_first_degree_quads(&state, &e1.value);
+        assert_eq!(
+            hash_e1.unwrap(),
+            "6fa0b9bdb376852b5743ff39ca4cbf7ea14d34966b2828478fbf222e7c764473".to_string()
+        );
+    }
+
+    #[test]
+    fn test_hash_first_degree_quads_shared_hashes() {
+        let mut state = CanonicalizationState::new();
+
+        let e0 = BlankNode::new(None);
+        let e1 = BlankNode::new(None);
+        let e2 = BlankNode::new(None);
+        let e3 = BlankNode::new(None);
+        let p = NamedNode::new("http://example.com/#p");
+        let q = NamedNode::new("http://example.com/#q");
+        let r = NamedNode::new("http://example.com/#r");
+        let default_graph = DefaultGraph::new();
+        let input_dataset = vec![
+            Quad::new(
+                &Subject::NamedNode(p.clone()),
+                &Predicate::NamedNode(q.clone()),
+                &Object::BlankNode(e0.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::NamedNode(p.clone()),
+                &Predicate::NamedNode(q.clone()),
+                &Object::BlankNode(e1.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e0.clone()),
+                &Predicate::NamedNode(p.clone()),
+                &Object::BlankNode(e2.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e1.clone()),
+                &Predicate::NamedNode(p.clone()),
+                &Object::BlankNode(e3.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e2.clone()),
+                &Predicate::NamedNode(r.clone()),
+                &Object::BlankNode(e3.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+        ];
+
+        state.update_blank_node_to_quads_map(&input_dataset);
+
+        let hash_e0 = hash_first_degree_quads(&state, &e0.value);
+        assert_eq!(
+            hash_e0.unwrap(),
+            "3b26142829b8887d011d779079a243bd61ab53c3990d550320a17b59ade6ba36".to_string()
+        );
+        let hash_e1 = hash_first_degree_quads(&state, &e1.value);
+        assert_eq!(
+            hash_e1.unwrap(),
+            "3b26142829b8887d011d779079a243bd61ab53c3990d550320a17b59ade6ba36".to_string()
+        );
+        let hash_e2 = hash_first_degree_quads(&state, &e2.value);
+        assert_eq!(
+            hash_e2.unwrap(),
+            "15973d39de079913dac841ac4fa8c4781c0febfba5e83e5c6e250869587f8659".to_string()
+        );
+        let hash_e3 = hash_first_degree_quads(&state, &e3.value);
+        assert_eq!(
+            hash_e3.unwrap(),
+            "7e790a99273eed1dc57e43205d37ce232252c85b26ca4a6ff74ff3b5aea7bccd".to_string()
+        );
+    }
 }
