@@ -141,7 +141,7 @@ pub fn issue_identifier(
 ///   quads in a dataset in which that blank node is a component. If the
 ///   hash uniquely identifies that blank node, no further examination is
 ///   necessary. Otherwise, a hash will be created for the blank node using
-///   the algorithm in 4.9 Hash N-Degree Quads inHvoked via
+///   the algorithm in 4.9 Hash N-Degree Quads invoked via
 ///   4.5 Canonicalization Algorithm.
 pub fn hash_first_degree_quads(
     canonicalization_state: &CanonicalizationState,
