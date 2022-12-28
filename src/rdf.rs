@@ -13,11 +13,30 @@ pub enum Subject {
     // Quad(Quad),
 }
 
+impl Subject {
+    pub fn value(&self) -> String {
+        match self {
+            Self::NamedNode(n) => n.value(),
+            Self::BlankNode(n) => n.value(),
+            Self::Variable(n) => n.value(),
+        }
+    }
+}
+
 /// The predicate, which is a NamedNode or Variable.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Predicate {
     NamedNode(NamedNode),
     Variable(Variable),
+}
+
+impl Predicate {
+    pub fn value(&self) -> String {
+        match self {
+            Self::NamedNode(n) => n.value(),
+            Self::Variable(n) => n.value(),
+        }
+    }
 }
 
 /// The object, which is a NamedNode, Literal, BlankNode or Variable.
@@ -29,6 +48,17 @@ pub enum Object {
     Variable(Variable),
 }
 
+impl Object {
+    pub fn value(&self) -> String {
+        match self {
+            Self::NamedNode(n) => n.value(),
+            Self::BlankNode(n) => n.value(),
+            Self::Literal(n) => n.value(),
+            Self::Variable(n) => n.value(),
+        }
+    }
+}
+
 /// The named graph, which is a DefaultGraph, NamedNode, BlankNode or
 /// Variable.
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -38,10 +68,24 @@ pub enum Graph {
     DefaultGraph(DefaultGraph),
 }
 
+impl Graph {
+    pub fn value(&self) -> String {
+        match self {
+            Self::NamedNode(n) => n.value(),
+            Self::BlankNode(n) => n.value(),
+            Self::DefaultGraph(n) => n.value(),
+        }
+    }
+}
+
+pub trait Term {
+    fn value(&self) -> String;
+}
+
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct NamedNode {
     /// The IRI of the named node (example: "http://example.org/resource").
-    pub value: String,
+    value: String,
 }
 
 impl NamedNode {
@@ -52,7 +96,11 @@ impl NamedNode {
         }
     }
 }
-
+impl Term for NamedNode {
+    fn value(&self) -> String {
+        self.value.clone()
+    }
+}
 impl PartialEq<BlankNode> for NamedNode {
     fn eq(&self, _other: &BlankNode) -> bool {
         false
@@ -80,7 +128,7 @@ pub struct BlankNode {
     /// prefixes, e.g. when parsing, if the data was sourced from Turtle,
     /// remove "_:", if it was sourced from RDF/XML, do not change the
     /// blank node name (example: "blank3").
-    pub value: String,
+    value: String,
 }
 
 impl BlankNode {
@@ -100,7 +148,11 @@ impl BlankNode {
         }
     }
 }
-
+impl Term for BlankNode {
+    fn value(&self) -> String {
+        self.value.clone()
+    }
+}
 impl PartialEq<NamedNode> for BlankNode {
     fn eq(&self, _other: &NamedNode) -> bool {
         false
@@ -126,7 +178,7 @@ impl PartialEq<DefaultGraph> for BlankNode {
 pub struct Literal {
     /// The text value, unescaped, without language or type (example: "Brad
     /// Pitt").
-    pub value: String,
+    value: String,
     /// The language as lowercase BCP-47 [BCP47] string (examples: "en",
     /// "en-gb") or an empty string if the literal has no language.
     pub language: Option<String>,
@@ -162,7 +214,11 @@ impl Literal {
         }
     }
 }
-
+impl Term for Literal {
+    fn value(&self) -> String {
+        self.value.clone()
+    }
+}
 impl PartialEq<NamedNode> for Literal {
     fn eq(&self, _other: &NamedNode) -> bool {
         false
@@ -187,7 +243,7 @@ impl PartialEq<DefaultGraph> for Literal {
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Variable {
     /// The name of the variable without leading "?" (example: "a").
-    pub value: String,
+    value: String,
 }
 
 impl Variable {
@@ -198,7 +254,11 @@ impl Variable {
         }
     }
 }
-
+impl Term for Variable {
+    fn value(&self) -> String {
+        self.value.clone()
+    }
+}
 impl PartialEq<NamedNode> for Variable {
     fn eq(&self, _other: &NamedNode) -> bool {
         false
@@ -234,7 +294,12 @@ impl DefaultGraph {
         DefaultGraph {}
     }
 }
-
+impl Term for DefaultGraph {
+    // Contains an empty string as constant value.
+    fn value(&self) -> String {
+        "".to_string()
+    }
+}
 impl PartialEq<NamedNode> for DefaultGraph {
     fn eq(&self, _other: &NamedNode) -> bool {
         false

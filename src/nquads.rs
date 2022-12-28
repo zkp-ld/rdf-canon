@@ -1,5 +1,6 @@
 use crate::rdf::{
-    BlankNode, DefaultGraph, Graph, Literal, NamedNode, Object, Predicate, Quad, Subject, Variable,
+    BlankNode, DefaultGraph, Graph, Literal, NamedNode, Object, Predicate, Quad, Subject, Term,
+    Variable,
 };
 
 pub trait SerializeNQuads {
@@ -7,24 +8,24 @@ pub trait SerializeNQuads {
 }
 impl SerializeNQuads for NamedNode {
     fn serialize(&self) -> String {
-        format!("<{}>", self.value)
+        format!("<{}>", self.value())
     }
 }
 impl SerializeNQuads for BlankNode {
     fn serialize(&self) -> String {
-        format!("_:{}", self.value)
+        format!("_:{}", self.value())
     }
 }
 impl SerializeNQuads for Literal {
     fn serialize(&self) -> String {
         // TODO: escape characters if necessary
-        let value = &self.value;
+        let value = &self.value();
         match (&self.language, &self.datatype) {
             // If present, the language tag is preceded by a '@' (U+0040).
             (Some(lang), _) => format!("\"{}\"@{}", value, lang),
             // If there is no language tag, there may be a datatype IRI, preceded
             // by '^^' (U+005E U+005E).
-            (None, Some(dt)) => format!("\"{}\"^^<{}>", value, dt.value),
+            (None, Some(dt)) => format!("\"{}\"^^<{}>", value, dt.value()),
             // If there is no datatype IRI and no language tag, the datatype is xsd:string.
             (None, None) => value.to_string(),
         }
@@ -32,7 +33,7 @@ impl SerializeNQuads for Literal {
 }
 impl SerializeNQuads for Variable {
     fn serialize(&self) -> String {
-        format!("?{}", self.value) // TODO: fix it
+        format!("?{}", self.value()) // TODO: fix it
     }
 }
 impl SerializeNQuads for DefaultGraph {
@@ -43,36 +44,36 @@ impl SerializeNQuads for DefaultGraph {
 impl SerializeNQuads for Subject {
     fn serialize(&self) -> String {
         match self {
-            Subject::NamedNode(x) => x.serialize(),
-            Subject::BlankNode(x) => x.serialize(),
-            Subject::Variable(x) => x.serialize(),
+            Self::NamedNode(x) => x.serialize(),
+            Self::BlankNode(x) => x.serialize(),
+            Self::Variable(x) => x.serialize(),
         }
     }
 }
 impl SerializeNQuads for Predicate {
     fn serialize(&self) -> String {
         match self {
-            Predicate::NamedNode(x) => x.serialize(),
-            Predicate::Variable(x) => x.serialize(),
+            Self::NamedNode(x) => x.serialize(),
+            Self::Variable(x) => x.serialize(),
         }
     }
 }
 impl SerializeNQuads for Object {
     fn serialize(&self) -> String {
         match self {
-            Object::NamedNode(x) => x.serialize(),
-            Object::BlankNode(x) => x.serialize(),
-            Object::Literal(x) => x.serialize(),
-            Object::Variable(x) => x.serialize(),
+            Self::NamedNode(x) => x.serialize(),
+            Self::BlankNode(x) => x.serialize(),
+            Self::Literal(x) => x.serialize(),
+            Self::Variable(x) => x.serialize(),
         }
     }
 }
 impl SerializeNQuads for Graph {
     fn serialize(&self) -> String {
         match self {
-            Graph::NamedNode(x) => x.serialize(),
-            Graph::BlankNode(x) => x.serialize(),
-            Graph::DefaultGraph(x) => x.serialize(),
+            Self::NamedNode(x) => x.serialize(),
+            Self::BlankNode(x) => x.serialize(),
+            Self::DefaultGraph(x) => x.serialize(),
         }
     }
 }
