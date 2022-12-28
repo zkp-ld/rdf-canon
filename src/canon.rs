@@ -101,48 +101,38 @@ impl IdentifierIssuer {
             .get(existing_identifier)
             .cloned()
     }
-}
 
-/// **4.6 Issue Identifier Algorithm**
-///   This algorithm issues a new blank node identifier for a given existing
-///   blank node identifier. It also updates state information that tracks
-///   the order in which new blank node identifiers were issued. The order
-///   of issuance is important for canonically labeling blank nodes that are
-///   isomorphic to others in the dataset.
-/// **4.6.2 Algorithm**
-///   The algorithm takes an identifier issuer I and an existing identifier as
-///   inputs. The output is a new issued identifier.
-pub fn issue_identifier(
-    identifier_issuer: &mut IdentifierIssuer,
-    existing_identifier: String,
-) -> String {
-    // 1) If there is a map entry for existing identifier in issued identifiers
-    // map of I, return it.
-    if let Some(issued_identifier) = identifier_issuer
-        .issued_identifiers_map
-        .get(&existing_identifier)
-    {
-        return issued_identifier.clone();
+    /// **4.6 Issue Identifier Algorithm**
+    ///   This algorithm issues a new blank node identifier for a given existing
+    ///   blank node identifier. It also updates state information that tracks
+    ///   the order in which new blank node identifiers were issued. The order
+    ///   of issuance is important for canonically labeling blank nodes that are
+    ///   isomorphic to others in the dataset.
+    /// **4.6.2 Algorithm**
+    ///   The algorithm takes an identifier issuer I and an existing identifier as
+    ///   inputs. The output is a new issued identifier.
+    pub fn issue(&mut self, existing_identifier: String) -> String {
+        // 1) If there is a map entry for existing identifier in issued identifiers
+        // map of I, return it.
+        if let Some(issued_identifier) = self.get(&existing_identifier) {
+            return issued_identifier;
+        }
+
+        // 2) Generate issued identifier by concatenating identifier prefix with
+        // the string value of identifier counter.
+        let issued_identifier = format!("{}{}", self.identifier_prefix, self.identifier_counter);
+
+        // 3) Add an entry mapping existing identifier to issued identifier to
+        // the issued identifiers map of I.
+        self.issued_identifiers_map
+            .insert(existing_identifier, issued_identifier.clone());
+
+        // 4) Increment identifier counter.
+        self.increment();
+
+        // 5) Return issued identifier.
+        issued_identifier
     }
-
-    // 2) Generate issued identifier by concatenating identifier prefix with
-    // the string value of identifier counter.
-    let issued_identifier = format!(
-        "{}{}",
-        identifier_issuer.identifier_prefix, identifier_issuer.identifier_counter
-    );
-
-    // 3) Add an entry mapping existing identifier to issued identifier to
-    // the issued identifiers map of I.
-    identifier_issuer
-        .issued_identifiers_map
-        .insert(existing_identifier, issued_identifier.clone());
-
-    // 4) Increment identifier counter.
-    identifier_issuer.increment();
-
-    // 5) Return issued identifier.
-    issued_identifier
 }
 
 /// **4.7 Hash First Degree Quads**
@@ -252,7 +242,7 @@ pub fn hash_related_blank_node(
     };
     /// 3) If there is a canonical identifier for related, or an identifier issued by issuer,
     /// append the string _:, followed by that identifier (using the canonical identifier if
-    /// present, otherwise the one issued by issuer) to input. 
+    /// present, otherwise the one issued by issuer) to input.
     issuer.get(related);
 }
 
@@ -265,35 +255,35 @@ mod tests {
     fn test_issue_identifier() {
         let mut canonical_issuer = IdentifierIssuer::new("c14n");
         assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b0".to_string()),
+            canonical_issuer.issue("b0".to_string()),
             "c14n0".to_string()
         );
         assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b1".to_string()),
+            canonical_issuer.issue("b1".to_string()),
             "c14n1".to_string()
         );
         assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b99".to_string()),
+            canonical_issuer.issue("b99".to_string()),
             "c14n2".to_string()
         );
         assert_eq!(
-            issue_identifier(&mut canonical_issuer, "xyz".to_string()),
+            canonical_issuer.issue("xyz".to_string()),
             "c14n3".to_string()
         );
         assert_eq!(
-            issue_identifier(&mut canonical_issuer, "xyz".to_string()),
+            canonical_issuer.issue("xyz".to_string()),
             "c14n3".to_string()
         );
         assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b99".to_string()),
+            canonical_issuer.issue("b99".to_string()),
             "c14n2".to_string()
         );
         assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b1".to_string()),
+            canonical_issuer.issue("b1".to_string()),
             "c14n1".to_string()
         );
         assert_eq!(
-            issue_identifier(&mut canonical_issuer, "b0".to_string()),
+            canonical_issuer.issue("b0".to_string()),
             "c14n0".to_string()
         );
     }
