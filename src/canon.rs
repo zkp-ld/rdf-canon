@@ -1,5 +1,5 @@
 use crate::nquads::SerializeNQuads;
-use crate::rdf::{BlankNode, Graph, Object, Quad, Subject};
+use crate::rdf::{BlankNode, Graph, Object, Quad, Subject, Term};
 use base16ct::lower::encode_str;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
@@ -36,19 +36,19 @@ impl CanonicalizationState {
         for quad in dataset.iter() {
             if let Subject::BlankNode(n) = &quad.subject {
                 self.blank_node_to_quads_map
-                    .entry(n.value.clone())
+                    .entry(n.value().clone())
                     .or_insert_with(Vec::<Quad>::new)
                     .push(quad.clone());
             }
             if let Object::BlankNode(n) = &quad.object {
                 self.blank_node_to_quads_map
-                    .entry(n.value.clone())
+                    .entry(n.value().clone())
                     .or_insert_with(Vec::<Quad>::new)
                     .push(quad.clone());
             }
             if let Graph::BlankNode(n) = &quad.graph {
                 self.blank_node_to_quads_map
-                    .entry(n.value.clone())
+                    .entry(n.value().clone())
                     .or_insert_with(Vec::<Quad>::new)
                     .push(quad.clone());
             }
@@ -95,6 +95,12 @@ impl IdentifierIssuer {
     pub fn increment(&mut self) {
         self.identifier_counter += 1
     }
+
+    pub fn get(&self, existing_identifier: &String) -> Option<String> {
+        self.issued_identifiers_map
+            .get(existing_identifier)
+            .cloned()
+    }
 }
 
 /// **4.6 Issue Identifier Algorithm**
@@ -103,6 +109,9 @@ impl IdentifierIssuer {
 ///   the order in which new blank node identifiers were issued. The order
 ///   of issuance is important for canonically labeling blank nodes that are
 ///   isomorphic to others in the dataset.
+/// **4.6.2 Algorithm**
+///   The algorithm takes an identifier issuer I and an existing identifier as
+///   inputs. The output is a new issued identifier.
 pub fn issue_identifier(
     identifier_issuer: &mut IdentifierIssuer,
     existing_identifier: String,
@@ -143,6 +152,9 @@ pub fn issue_identifier(
 ///   necessary. Otherwise, a hash will be created for the blank node using
 ///   the algorithm in 4.9 Hash N-Degree Quads invoked via
 ///   4.5 Canonicalization Algorithm.
+/// **4.7.3 Algorithm**
+///   This algorithm takes the canonicalization state and a reference blank node
+///   identifier as inputs.
 pub fn hash_first_degree_quads(
     canonicalization_state: &CanonicalizationState,
     reference_blank_node_identifier: &String,
@@ -196,14 +208,10 @@ pub fn hash_first_degree_quads(
     // blank node identifier then use the blank node identifier a, otherwise, use the blank
     // node identifier z.
     fn replace_bnid(bnode: &BlankNode, reference_blank_node_identifier: &String) -> BlankNode {
-        if bnode.value == *reference_blank_node_identifier {
-            BlankNode {
-                value: "a".to_string(),
-            }
+        if bnode.value() == *reference_blank_node_identifier {
+            BlankNode::new(Some("a"))
         } else {
-            BlankNode {
-                value: "z".to_string(),
-            }
+            BlankNode::new(Some("z"))
         }
     }
 
@@ -221,6 +229,31 @@ pub fn hash_first_degree_quads(
     let mut buf = [0u8; HASH_BUF_LEN];
     let hex_hash = encode_str(&hash, &mut buf).unwrap();
     Some(hex_hash.to_string())
+}
+
+/// **4.8 Hash Related Blank Node**
+///   This algorithm generates a hash for some blank node component of a quad, considering
+///   its position within that quad. This is used as part of the Hash N-Degree Quads
+///   algorithm to characterize the blank nodes related to some particular blank node within
+///   their mention sets.
+pub fn hash_related_blank_node(
+    state: &CanonicalizationState,
+    related: &String,
+    quad: &Quad,
+    issuer: &IdentifierIssuer,
+    position: &String,
+) {
+    /// 1) Initialize a string input to the value of position.
+    /// 2) If position is not g, append <, the value of the predicate in quad, and > to input.
+    let input = if *position == "g".to_string() {
+        format!("{}", position)
+    } else {
+        format!("{}<{}>", position, quad.predicate.value())
+    };
+    /// 3) If there is a canonical identifier for related, or an identifier issued by issuer,
+    /// append the string _:, followed by that identifier (using the canonical identifier if
+    /// present, otherwise the one issued by issuer) to input. 
+    issuer.get(related);
 }
 
 #[cfg(test)]
@@ -307,12 +340,12 @@ mod tests {
 
         state.update_blank_node_to_quads_map(&input_dataset);
 
-        let hash_e0 = hash_first_degree_quads(&state, &e0.value);
+        let hash_e0 = hash_first_degree_quads(&state, &e0.value());
         assert_eq!(
             hash_e0.unwrap(),
             "21d1dd5ba21f3dee9d76c0c00c260fa6f5d5d65315099e553026f4828d0dc77a".to_string()
         );
-        let hash_e1 = hash_first_degree_quads(&state, &e1.value);
+        let hash_e1 = hash_first_degree_quads(&state, &e1.value());
         assert_eq!(
             hash_e1.unwrap(),
             "6fa0b9bdb376852b5743ff39ca4cbf7ea14d34966b2828478fbf222e7c764473".to_string()
@@ -366,22 +399,22 @@ mod tests {
 
         state.update_blank_node_to_quads_map(&input_dataset);
 
-        let hash_e0 = hash_first_degree_quads(&state, &e0.value);
+        let hash_e0 = hash_first_degree_quads(&state, &e0.value());
         assert_eq!(
             hash_e0.unwrap(),
             "3b26142829b8887d011d779079a243bd61ab53c3990d550320a17b59ade6ba36".to_string()
         );
-        let hash_e1 = hash_first_degree_quads(&state, &e1.value);
+        let hash_e1 = hash_first_degree_quads(&state, &e1.value());
         assert_eq!(
             hash_e1.unwrap(),
             "3b26142829b8887d011d779079a243bd61ab53c3990d550320a17b59ade6ba36".to_string()
         );
-        let hash_e2 = hash_first_degree_quads(&state, &e2.value);
+        let hash_e2 = hash_first_degree_quads(&state, &e2.value());
         assert_eq!(
             hash_e2.unwrap(),
             "15973d39de079913dac841ac4fa8c4781c0febfba5e83e5c6e250869587f8659".to_string()
         );
-        let hash_e3 = hash_first_degree_quads(&state, &e3.value);
+        let hash_e3 = hash_first_degree_quads(&state, &e3.value());
         assert_eq!(
             hash_e3.unwrap(),
             "7e790a99273eed1dc57e43205d37ce232252c85b26ca4a6ff74ff3b5aea7bccd".to_string()
