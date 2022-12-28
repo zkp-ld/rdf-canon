@@ -90,64 +90,69 @@ impl SerializeNQuads for Quad {
     }
 }
 
-#[test]
-fn test_serialize_quads() {
-    let subject1 = NamedNode::new("http://example.org/subject1");
-    let subject2 = NamedNode::new("http://example.org/あいうえお");
-    let predicate1 = NamedNode::new("http://example.org/predicate1");
-    let predicate2 = NamedNode::new("http://example.org/predicate2");
-    let object1 = NamedNode::new("http://example.org/object1");
-    let object2 = Literal::new(
-        "100",
-        Some(&NamedNode::new("http://www.w3.org/2001/XMLSchema#integer")),
-        None,
-    );
-    let object3 = Literal::new("あいうえお", None, Some("ja"));
-    let graph1 = NamedNode::new("http://example.org/graph1");
-    let bnode1 = BlankNode::new(None);
-    let bnode2 = BlankNode::new(None);
-    let default_graph = DefaultGraph::new();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let quad1 = Quad::new(
-        &Subject::NamedNode(subject1.clone()),
-        &Predicate::NamedNode(predicate1.clone()),
-        &Object::NamedNode(object1.clone()),
-        &Graph::NamedNode(graph1.clone()),
-    );
-    let quad2 = Quad::new(
-        &Subject::BlankNode(bnode1.clone()),
-        &Predicate::NamedNode(predicate2.clone()),
-        &Object::BlankNode(bnode2.clone()),
-        &Graph::DefaultGraph(default_graph.clone()),
-    );
-    let quad3 = Quad::new(
-        &Subject::BlankNode(bnode1.clone()),
-        &Predicate::NamedNode(predicate2.clone()),
-        &Object::Literal(object2.clone()),
-        &Graph::DefaultGraph(default_graph.clone()),
-    );
-    let quad4 = Quad::new(
-        &Subject::NamedNode(subject2.clone()),
-        &Predicate::NamedNode(predicate1.clone()),
-        &Object::Literal(object3.clone()),
-        &Graph::DefaultGraph(default_graph.clone()),
-    );
+    #[test]
+    fn test_serialize_quads() {
+        let subject1 = NamedNode::new("http://example.org/subject1");
+        let subject2 = NamedNode::new("http://example.org/あいうえお");
+        let predicate1 = NamedNode::new("http://example.org/predicate1");
+        let predicate2 = NamedNode::new("http://example.org/predicate2");
+        let object1 = NamedNode::new("http://example.org/object1");
+        let object2 = Literal::new(
+            "100",
+            Some(&NamedNode::new("http://www.w3.org/2001/XMLSchema#integer")),
+            None,
+        );
+        let object3 = Literal::new("あいうえお", None, Some("ja"));
+        let graph1 = NamedNode::new("http://example.org/graph1");
+        let bnode1 = BlankNode::new(None);
+        let bnode2 = BlankNode::new(None);
+        let default_graph = DefaultGraph::new();
 
-    assert_eq!(quad1.serialize(),
+        let quad1 = Quad::new(
+            &Subject::NamedNode(subject1.clone()),
+            &Predicate::NamedNode(predicate1.clone()),
+            &Object::NamedNode(object1.clone()),
+            &Graph::NamedNode(graph1.clone()),
+        );
+        let quad2 = Quad::new(
+            &Subject::BlankNode(bnode1.clone()),
+            &Predicate::NamedNode(predicate2.clone()),
+            &Object::BlankNode(bnode2.clone()),
+            &Graph::DefaultGraph(default_graph.clone()),
+        );
+        let quad3 = Quad::new(
+            &Subject::BlankNode(bnode1.clone()),
+            &Predicate::NamedNode(predicate2.clone()),
+            &Object::Literal(object2.clone()),
+            &Graph::DefaultGraph(default_graph.clone()),
+        );
+        let quad4 = Quad::new(
+            &Subject::NamedNode(subject2.clone()),
+            &Predicate::NamedNode(predicate1.clone()),
+            &Object::Literal(object3.clone()),
+            &Graph::DefaultGraph(default_graph.clone()),
+        );
+
+        assert_eq!(quad1.serialize(),
         "<http://example.org/subject1> <http://example.org/predicate1> <http://example.org/object1> <http://example.org/graph1> .\n".to_string());
-    assert_eq!(
-        quad2.serialize(),
-        format!(
-            "{} <http://example.org/predicate2> {} .\n",
-            &bnode1.serialize(),
-            &bnode2.serialize(),
-        )
-    );
-    assert_eq!(quad3.serialize(),
+        assert_eq!(
+            quad2.serialize(),
+            format!(
+                "{} <http://example.org/predicate2> {} .\n",
+                &bnode1.serialize(),
+                &bnode2.serialize(),
+            )
+        );
+        assert_eq!(quad3.serialize(),
         format!("{} <http://example.org/predicate2> \"100\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n", &bnode1.serialize()));
-    assert_eq!(
-        quad4.serialize(),
-        "<http://example.org/あいうえお> <http://example.org/predicate1> \"あいうえお\"@ja .\n"
-            .to_string()
-    );
+        assert_eq!(
+            quad4.serialize(),
+            "<http://example.org/あいうえお> <http://example.org/predicate1> \"あいうえお\"@ja .\n"
+                .to_string()
+        );
+    }
 }

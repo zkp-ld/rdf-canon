@@ -286,183 +286,179 @@ impl Quad {
     }
 }
 
-// impl PartialEq for Quad {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.subject == other.subject
-//             && self.predicate == other.predicate
-//             && self.object == other.object
-//             && self.graph == other.graph
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn gen_named_node() {
-    let named_node1 = NamedNode::new("http://example.org/foo");
-    let named_node2 = NamedNode::new("urn:example:bar");
-    let named_node3 = NamedNode::new("http://example.org/foo");
-    assert_eq!(named_node1.value, "http://example.org/foo");
-    assert_eq!(named_node2.value, "urn:example:bar");
-    assert_eq!(named_node3.value, "http://example.org/foo");
-    assert_ne!(named_node1, named_node2);
-    assert_ne!(named_node2, named_node3);
-    assert_eq!(named_node3, named_node1);
-}
+    #[test]
+    fn gen_named_node() {
+        let named_node1 = NamedNode::new("http://example.org/foo");
+        let named_node2 = NamedNode::new("urn:example:bar");
+        let named_node3 = NamedNode::new("http://example.org/foo");
+        assert_eq!(named_node1.value, "http://example.org/foo");
+        assert_eq!(named_node2.value, "urn:example:bar");
+        assert_eq!(named_node3.value, "http://example.org/foo");
+        assert_ne!(named_node1, named_node2);
+        assert_ne!(named_node2, named_node3);
+        assert_eq!(named_node3, named_node1);
+    }
 
-#[test]
-fn gen_blank_node() {
-    let blank_node1 = BlankNode::new(None);
-    let blank_node2 = BlankNode::new(None);
-    let blank_node3 = BlankNode::new(Some(&blank_node1.value));
-    assert_ne!(blank_node1, blank_node2);
-    assert_ne!(blank_node2, blank_node3);
-    assert_eq!(blank_node3, blank_node1);
-}
+    #[test]
+    fn gen_blank_node() {
+        let blank_node1 = BlankNode::new(None);
+        let blank_node2 = BlankNode::new(None);
+        let blank_node3 = BlankNode::new(Some(&blank_node1.value));
+        assert_ne!(blank_node1, blank_node2);
+        assert_ne!(blank_node2, blank_node3);
+        assert_eq!(blank_node3, blank_node1);
+    }
 
-#[test]
-fn gen_literal() {
-    let literal1 = Literal::new("foo", None, None);
-    let literal2 = Literal::new("bar", None, None);
-    let literal3 = Literal::new("foo", None, None);
-    let literal4_en = Literal::new("foo", None, Some("en"));
-    let literal4_ja = Literal::new("あいうえお", None, Some("ja"));
-    let literal5 = Literal::new(
-        "123",
-        Some(&NamedNode::new("http://www.w3.org/2001/XMLSchema#integer")),
-        None,
-    );
-    let literal6 = Literal::new(
-        "123",
-        Some(&NamedNode::new("http://www.w3.org/2001/XMLSchema#integer")),
-        None,
-    );
-    assert_eq!(literal1.value, "foo");
-    assert_eq!(literal2.value, "bar");
-    assert_eq!(literal3.value, "foo");
-    assert_eq!(literal4_en.value, "foo");
-    assert_eq!(literal4_ja.value, "あいうえお");
-    assert_eq!(literal5.value, "123");
-    assert_ne!(literal1, literal2);
-    assert_ne!(literal2, literal3);
-    assert_eq!(literal3, literal1);
-    assert_ne!(literal4_en, literal4_ja);
-    assert_ne!(literal4_en, literal4_ja);
-    assert_eq!(literal5, literal6);
-}
-
-#[test]
-fn gen_variable() {
-    let variable1 = Variable::new("foo");
-    let variable2 = Variable::new("bar");
-    let variable3 = Variable::new("foo");
-    assert_eq!(variable1.value, "foo");
-    assert_eq!(variable2.value, "bar");
-    assert_eq!(variable3.value, "foo");
-    assert_ne!(variable1, variable2);
-    assert_ne!(variable2, variable3);
-    assert_eq!(variable3, variable1);
-}
-
-#[test]
-fn gen_default_graph() {
-    let default_graph1 = DefaultGraph::new();
-    let default_graph2 = DefaultGraph::new();
-    assert_eq!(default_graph1, default_graph2);
-}
-
-#[test]
-fn gen_quad() {
-    let subject1 = NamedNode::new("http://example.org/subject1");
-    let predicate1 = NamedNode::new("http://example.org/predicate1");
-    let predicate3 = NamedNode::new("http://example.org/predicate3");
-    let object1 = NamedNode::new("http://example.org/object1");
-    let graph1 = NamedNode::new("http://example.org/graph1");
-    let bnode1 = BlankNode::new(None);
-    let bnode2 = BlankNode::new(None);
-
-    let quad1 = Quad::new(
-        &Subject::NamedNode(subject1.clone()),
-        &Predicate::NamedNode(predicate1.clone()),
-        &Object::NamedNode(object1.clone()),
-        &Graph::NamedNode(graph1.clone()),
-    );
-    let quad2 = Quad::new(
-        &Subject::BlankNode(bnode1.clone()),
-        &Predicate::NamedNode(predicate1.clone()),
-        &Object::BlankNode(bnode2.clone()),
-        &Graph::NamedNode(graph1.clone()),
-    );
-    assert_ne!(quad1, quad2);
-    assert_ne!(quad2, quad1);
-
-    let quad21 = Quad::new(
-        &Subject::BlankNode(bnode1.clone()),
-        &Predicate::NamedNode(predicate1.clone()),
-        &Object::BlankNode(bnode2.clone()),
-        &Graph::NamedNode(graph1.clone()),
-    );
-    assert_eq!(quad2, quad21);
-    assert_eq!(quad21, quad2);
-
-    let quad22 = Quad::new(
-        &Subject::BlankNode(bnode2.clone()),
-        &Predicate::NamedNode(predicate1.clone()),
-        &Object::BlankNode(bnode2.clone()),
-        &Graph::NamedNode(graph1.clone()),
-    );
-    assert_ne!(quad2, quad22);
-    assert_ne!(quad22, quad2);
-
-    let quad3 = Quad::new(
-        &Subject::NamedNode(subject1.clone()),
-        &Predicate::NamedNode(predicate3.clone()),
-        &Object::NamedNode(NamedNode::new("http://example.org/object3")),
-        &Graph::NamedNode(NamedNode::new("http://example.org/graph3")),
-    );
-    assert_ne!(quad2, quad3);
-    assert_ne!(quad3, quad2);
-
-    let quad4 = Quad::new(
-        &Subject::NamedNode(subject1.clone()),
-        &Predicate::NamedNode(predicate3.clone()),
-        &Object::NamedNode(NamedNode::new("http://example.org/object3")),
-        &Graph::DefaultGraph(DefaultGraph::new()),
-    );
-    assert_ne!(quad3, quad4);
-    assert_ne!(quad4, quad3);
-
-    let quad5 = Quad::new(
-        &Subject::NamedNode(NamedNode::new("http://example.org/subject1")),
-        &Predicate::NamedNode(NamedNode::new("http://example.org/predicate1")),
-        &Object::NamedNode(NamedNode::new("http://example.org/object1")),
-        &Graph::NamedNode(NamedNode::new("http://example.org/graph1")),
-    );
-    assert_eq!(quad1, quad5);
-    assert_eq!(quad5, quad1);
-    assert_ne!(quad4, quad5);
-    assert_ne!(quad5, quad4);
-
-    let quad6 = Quad::new(
-        &Subject::NamedNode(subject1.clone()),
-        &Predicate::NamedNode(predicate1.clone()),
-        &Object::Literal(Literal::new("object6", None, None)),
-        &Graph::DefaultGraph(DefaultGraph::new()),
-    );
-    assert_ne!(quad1, quad6);
-    assert_ne!(quad6, quad1);
-
-    let quad7 = Quad::new(
-        &Subject::NamedNode(subject1.clone()),
-        &Predicate::NamedNode(predicate1.clone()),
-        &Object::Literal(Literal::new(
-            "object6",
-            Some(&NamedNode::new("http://www.w3.org/2001/XMLSchema#string")),
+    #[test]
+    fn gen_literal() {
+        let literal1 = Literal::new("foo", None, None);
+        let literal2 = Literal::new("bar", None, None);
+        let literal3 = Literal::new("foo", None, None);
+        let literal4_en = Literal::new("foo", None, Some("en"));
+        let literal4_ja = Literal::new("あいうえお", None, Some("ja"));
+        let literal5 = Literal::new(
+            "123",
+            Some(&NamedNode::new("http://www.w3.org/2001/XMLSchema#integer")),
             None,
-        )),
-        &Graph::DefaultGraph(DefaultGraph::new()),
-    );
-    assert_eq!(quad6, quad7);
-    assert_eq!(quad7, quad6);
+        );
+        let literal6 = Literal::new(
+            "123",
+            Some(&NamedNode::new("http://www.w3.org/2001/XMLSchema#integer")),
+            None,
+        );
+        assert_eq!(literal1.value, "foo");
+        assert_eq!(literal2.value, "bar");
+        assert_eq!(literal3.value, "foo");
+        assert_eq!(literal4_en.value, "foo");
+        assert_eq!(literal4_ja.value, "あいうえお");
+        assert_eq!(literal5.value, "123");
+        assert_ne!(literal1, literal2);
+        assert_ne!(literal2, literal3);
+        assert_eq!(literal3, literal1);
+        assert_ne!(literal4_en, literal4_ja);
+        assert_ne!(literal4_en, literal4_ja);
+        assert_eq!(literal5, literal6);
+    }
 
-    assert_ne!(quad1.subject, quad2.subject);
-    assert_eq!(quad1.subject, quad3.subject);
+    #[test]
+    fn gen_variable() {
+        let variable1 = Variable::new("foo");
+        let variable2 = Variable::new("bar");
+        let variable3 = Variable::new("foo");
+        assert_eq!(variable1.value, "foo");
+        assert_eq!(variable2.value, "bar");
+        assert_eq!(variable3.value, "foo");
+        assert_ne!(variable1, variable2);
+        assert_ne!(variable2, variable3);
+        assert_eq!(variable3, variable1);
+    }
+
+    #[test]
+    fn gen_default_graph() {
+        let default_graph1 = DefaultGraph::new();
+        let default_graph2 = DefaultGraph::new();
+        assert_eq!(default_graph1, default_graph2);
+    }
+
+    #[test]
+    fn gen_quad() {
+        let subject1 = NamedNode::new("http://example.org/subject1");
+        let predicate1 = NamedNode::new("http://example.org/predicate1");
+        let predicate3 = NamedNode::new("http://example.org/predicate3");
+        let object1 = NamedNode::new("http://example.org/object1");
+        let graph1 = NamedNode::new("http://example.org/graph1");
+        let bnode1 = BlankNode::new(None);
+        let bnode2 = BlankNode::new(None);
+
+        let quad1 = Quad::new(
+            &Subject::NamedNode(subject1.clone()),
+            &Predicate::NamedNode(predicate1.clone()),
+            &Object::NamedNode(object1.clone()),
+            &Graph::NamedNode(graph1.clone()),
+        );
+        let quad2 = Quad::new(
+            &Subject::BlankNode(bnode1.clone()),
+            &Predicate::NamedNode(predicate1.clone()),
+            &Object::BlankNode(bnode2.clone()),
+            &Graph::NamedNode(graph1.clone()),
+        );
+        assert_ne!(quad1, quad2);
+        assert_ne!(quad2, quad1);
+
+        let quad21 = Quad::new(
+            &Subject::BlankNode(bnode1.clone()),
+            &Predicate::NamedNode(predicate1.clone()),
+            &Object::BlankNode(bnode2.clone()),
+            &Graph::NamedNode(graph1.clone()),
+        );
+        assert_eq!(quad2, quad21);
+        assert_eq!(quad21, quad2);
+
+        let quad22 = Quad::new(
+            &Subject::BlankNode(bnode2.clone()),
+            &Predicate::NamedNode(predicate1.clone()),
+            &Object::BlankNode(bnode2.clone()),
+            &Graph::NamedNode(graph1.clone()),
+        );
+        assert_ne!(quad2, quad22);
+        assert_ne!(quad22, quad2);
+
+        let quad3 = Quad::new(
+            &Subject::NamedNode(subject1.clone()),
+            &Predicate::NamedNode(predicate3.clone()),
+            &Object::NamedNode(NamedNode::new("http://example.org/object3")),
+            &Graph::NamedNode(NamedNode::new("http://example.org/graph3")),
+        );
+        assert_ne!(quad2, quad3);
+        assert_ne!(quad3, quad2);
+
+        let quad4 = Quad::new(
+            &Subject::NamedNode(subject1.clone()),
+            &Predicate::NamedNode(predicate3.clone()),
+            &Object::NamedNode(NamedNode::new("http://example.org/object3")),
+            &Graph::DefaultGraph(DefaultGraph::new()),
+        );
+        assert_ne!(quad3, quad4);
+        assert_ne!(quad4, quad3);
+
+        let quad5 = Quad::new(
+            &Subject::NamedNode(NamedNode::new("http://example.org/subject1")),
+            &Predicate::NamedNode(NamedNode::new("http://example.org/predicate1")),
+            &Object::NamedNode(NamedNode::new("http://example.org/object1")),
+            &Graph::NamedNode(NamedNode::new("http://example.org/graph1")),
+        );
+        assert_eq!(quad1, quad5);
+        assert_eq!(quad5, quad1);
+        assert_ne!(quad4, quad5);
+        assert_ne!(quad5, quad4);
+
+        let quad6 = Quad::new(
+            &Subject::NamedNode(subject1.clone()),
+            &Predicate::NamedNode(predicate1.clone()),
+            &Object::Literal(Literal::new("object6", None, None)),
+            &Graph::DefaultGraph(DefaultGraph::new()),
+        );
+        assert_ne!(quad1, quad6);
+        assert_ne!(quad6, quad1);
+
+        let quad7 = Quad::new(
+            &Subject::NamedNode(subject1.clone()),
+            &Predicate::NamedNode(predicate1.clone()),
+            &Object::Literal(Literal::new(
+                "object6",
+                Some(&NamedNode::new("http://www.w3.org/2001/XMLSchema#string")),
+                None,
+            )),
+            &Graph::DefaultGraph(DefaultGraph::new()),
+        );
+        assert_eq!(quad6, quad7);
+        assert_eq!(quad7, quad6);
+
+        assert_ne!(quad1.subject, quad2.subject);
+        assert_eq!(quad1.subject, quad3.subject);
+    }
 }
