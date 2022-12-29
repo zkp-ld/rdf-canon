@@ -27,8 +27,8 @@ impl CanonicalizationState {
 
     pub fn new() -> CanonicalizationState {
         CanonicalizationState {
-            blank_node_to_quads_map: HashMap::new(),
-            hash_to_blank_node_map: HashMap::new(),
+            blank_node_to_quads_map: HashMap::<String, Vec<Quad>>::new(),
+            hash_to_blank_node_map: HashMap::<String, Vec<String>>::new(),
             canonical_issuer: IdentifierIssuer::new(Self::DEFAULT_CANONICAL_IDENTIFER_PREFIX),
         }
     }
@@ -54,6 +54,10 @@ impl CanonicalizationState {
                     .push(quad.clone());
             }
         }
+    }
+
+    fn get_quads_for_blank_node(&self, identifier: &String) -> Option<&Vec<Quad>> {
+        self.blank_node_to_quads_map.get(identifier)
     }
 }
 
