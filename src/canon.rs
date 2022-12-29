@@ -163,7 +163,7 @@ fn hash(data: impl AsRef<[u8]>) -> Result<String, CanonicalizationError> {
 /// **4.7.3 Algorithm**
 ///   This algorithm takes the canonicalization state and a reference blank node
 ///   identifier as inputs.
-pub fn hash_first_degree_quads(
+fn hash_first_degree_quads(
     canonicalization_state: &CanonicalizationState,
     reference_blank_node_identifier: &String,
 ) -> Result<String, CanonicalizationError> {
@@ -243,7 +243,7 @@ pub fn hash_first_degree_quads(
 ///   its position within that quad. This is used as part of the Hash N-Degree Quads
 ///   algorithm to characterize the blank nodes related to some particular blank node within
 ///   their mention sets.
-pub fn hash_related_blank_node(
+fn hash_related_blank_node(
     state: &CanonicalizationState,
     related: &String,
     quad: &Quad,
