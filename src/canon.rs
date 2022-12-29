@@ -1,3 +1,4 @@
+use crate::error::CanonicalizationError;
 use crate::nquads::SerializeNQuads;
 use crate::rdf::{BlankNode, Graph, Object, Quad, Subject, Term};
 use base16ct::lower::encode_str;
@@ -135,6 +136,23 @@ impl IdentifierIssuer {
     }
 }
 
+/// **hash**
+///   The lowercase, hexadecimal representation of a message digest.
+/// **hash algorithm**
+///   The hash algorithm used by URDNA2015, namely, SHA-256.
+fn hash(data: impl AsRef<[u8]>) -> Result<String, CanonicalizationError> {
+    const HASH_LEN: usize = 32;
+    const HASH_BUF_LEN: usize = HASH_LEN * 2;
+
+    let hash = Sha256::digest(data);
+    let mut buf = [0u8; HASH_BUF_LEN];
+    let hex_hash = encode_str(&hash, &mut buf);
+    match hex_hash {
+        Ok(h) => Ok(h.to_string()),
+        Err(e) => Err(CanonicalizationError::Base16EncodingError(e)),
+    }
+}
+
 /// **4.7 Hash First Degree Quads**
 ///   This algorithm calculates a hash for a given blank node across the
 ///   quads in a dataset in which that blank node is a component. If the
@@ -148,7 +166,7 @@ impl IdentifierIssuer {
 pub fn hash_first_degree_quads(
     canonicalization_state: &CanonicalizationState,
     reference_blank_node_identifier: &String,
-) -> Option<String> {
+) -> Result<String, CanonicalizationError> {
     // 1) Initialize nquads to an empty list. It will be used to store
     // quads in canonical n-quads form.
     // let nquads: Vec<String> = Vec::new();
@@ -157,7 +175,11 @@ pub fn hash_first_degree_quads(
     // blank node identifier in the blank node to quads map.
     let quads = canonicalization_state
         .blank_node_to_quads_map
-        .get(reference_blank_node_identifier)?;
+        .get(reference_blank_node_identifier);
+    let quads = match quads {
+        Some(q) => q,
+        None => return Err(CanonicalizationError::QuadsNotExistError),
+    };
 
     // 3) For each quad quad in quads:
     let mut nquads = quads
@@ -213,12 +235,7 @@ pub fn hash_first_degree_quads(
 
     // 5) Return the hash that results from passing the sorted and concatenated
     // nquads through the hash algorithm.
-    let hash = Sha256::digest(nquads.join(""));
-    const HASH_LEN: usize = 32;
-    const HASH_BUF_LEN: usize = HASH_LEN * 2;
-    let mut buf = [0u8; HASH_BUF_LEN];
-    let hex_hash = encode_str(&hash, &mut buf).unwrap();
-    Some(hex_hash.to_string())
+    hash(nquads.join(""))
 }
 
 /// **4.8 Hash Related Blank Node**
@@ -232,18 +249,31 @@ pub fn hash_related_blank_node(
     quad: &Quad,
     issuer: &IdentifierIssuer,
     position: &String,
-) {
-    /// 1) Initialize a string input to the value of position.
-    /// 2) If position is not g, append <, the value of the predicate in quad, and > to input.
-    let input = if *position == "g".to_string() {
-        format!("{}", position)
+) -> Result<String, CanonicalizationError> {
+    // 1) Initialize a string input to the value of position.
+    // 2) If position is not g, append <, the value of the predicate in quad, and > to input.
+    let input = if position == &"g".to_string() {
+        position.to_string()
     } else {
         format!("{}<{}>", position, quad.predicate.value())
     };
-    /// 3) If there is a canonical identifier for related, or an identifier issued by issuer,
-    /// append the string _:, followed by that identifier (using the canonical identifier if
-    /// present, otherwise the one issued by issuer) to input.
-    issuer.get(related);
+
+    // 3) If there is a canonical identifier for related, or an identifier issued by issuer,
+    // append the string _:, followed by that identifier (using the canonical identifier if
+    // present, otherwise the one issued by issuer) to input.
+    let identifier = match state.canonical_issuer.get(related) {
+        Some(id) => format!("_:{}", id),
+        None => match issuer.get(related) {
+            Some(id) => format!("_:{}", id),
+            // 4) Otherwise, append the result of the Hash First Degree Quads algorithm,
+            // passing related to input.
+            None => hash_first_degree_quads(state, related)?,
+        },
+    };
+    let input = format!("{}{}", input, identifier);
+
+    // 5) Return the hash that results from passing input through the hash algorithm.
+    hash(input)
 }
 
 #[cfg(test)]
@@ -408,6 +438,33 @@ mod tests {
         assert_eq!(
             hash_e3.unwrap(),
             "7e790a99273eed1dc57e43205d37ce232252c85b26ca4a6ff74ff3b5aea7bccd".to_string()
+        );
+    }
+
+    #[test]
+    fn test_hash_related_blank_node() {
+        let mut state = CanonicalizationState::new();
+        state
+            .canonical_issuer
+            .issued_identifiers_map
+            .insert("e2".to_string(), "c14n0".to_string());
+        let issuer = IdentifierIssuer::new("b");
+        let position = "o".to_string();
+        let e0 = BlankNode::new(None);
+        let e2 = BlankNode::new(None);
+        let p = NamedNode::new("http://example.com/#p");
+        let default_graph = DefaultGraph::new();
+        let quad = Quad::new(
+            &Subject::BlankNode(e0),
+            &Predicate::NamedNode(p),
+            &Object::BlankNode(e2),
+            &Graph::DefaultGraph(default_graph),
+        );
+        let related_hash =
+            hash_related_blank_node(&state, &"e2".to_string(), &quad, &issuer, &position);
+        assert_eq!(
+            related_hash.unwrap(),
+            "29cf7e22790bc2ed395b81b3933e5329fc7b25390486085cac31ce7252ca60fa".to_string()
         );
     }
 }
