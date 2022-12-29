@@ -179,9 +179,9 @@ fn hash_first_degree_quads(
     // blank node identifier in the blank node to quads map.
     let quads =
         match canonicalization_state.get_quads_for_blank_node(reference_blank_node_identifier) {
-        Some(q) => q,
-        None => return Err(CanonicalizationError::QuadsNotExistError),
-    };
+            Some(q) => q,
+            None => return Err(CanonicalizationError::QuadsNotExistError),
+        };
 
     // 3) For each quad quad in quads:
     let mut nquads = quads
@@ -270,7 +270,7 @@ fn hash_related_blank_node(
     // 1) Initialize a string input to the value of position.
     let input = match position {
         HashRelatedBlankNodePosition::Graph => position.serialize().to_string(),
-    // 2) If position is not g, append <, the value of the predicate in quad, and > to input.
+        // 2) If position is not g, append <, the value of the predicate in quad, and > to input.
         _ => format!("{}<{}>", position.serialize(), quad.predicate.value()),
     };
 
@@ -290,6 +290,104 @@ fn hash_related_blank_node(
 
     // 5) Return the hash that results from passing input through the hash algorithm.
     hash(input)
+}
+
+/// **4.9 Hash N-Degree Quads**
+///   This algorithm calculates a hash for a given blank node across the quads in a dataset
+///   in which that blank node is a component for which the hash does not uniquely identify
+///   that blank node. This is done by expanding the search from quads directly referencing
+///   that blank node (the mention set), to those quads which contain nodes which are also
+///   components of quads in the mention set, called the gossip path. This process proceeds
+///   in every greater degrees of indirection until a unique hash is obtained.
+/// **4.9.3 Algorithm**
+///   The inputs to this algorithm are the canonicalization state, the identifier for the
+///   blank node to recursively hash quads for, and path identifier issuer which is an
+///   identifier issuer that issues temporary blank node identifiers. The output from this
+///   algorithm will be a hash and the identifier issuer used to help generate it.
+fn hash_n_degree_quads(
+    state: &CanonicalizationState,
+    identifier: String,
+    issuer: &IdentifierIssuer,
+) -> Result<String, CanonicalizationError> {
+    // 1) Create a new map Hn for relating hashes to related blank nodes.
+    let mut h_n = BTreeMap::<String, String>::new();
+
+    // 2) Get a reference, quads, to the list of quads from the map entry for identifier
+    // in the blank node to quads map.
+    let quads = match state.get_quads_for_blank_node(&identifier) {
+        Some(q) => q,
+        None => return Err(CanonicalizationError::QuadsNotExistError),
+    };
+
+    // 3) For each quad in quads:
+    for quad in quads {
+        // 3.1) For each component in quad, where component is the subject, object, or graph name,
+        // and it is a blank node that is not identified by identifier:
+        if let Subject::BlankNode(bnode) = &quad.subject {
+            let bnode_id = bnode.value();
+            if bnode_id != identifier {
+                // 3.1.1) Set hash to the result of the Hash Related Blank Node algorithm, passing
+                // the blank node identifier for component as related, quad, issuer, and position
+                // as either s, o, or g based on whether component is a subject, object, graph name,
+                // respectively.
+                let hash = hash_related_blank_node(
+                    state,
+                    &bnode_id,
+                    quad,
+                    issuer,
+                    HashRelatedBlankNodePosition::Subject,
+                )?;
+                // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
+                // adding an entry as necessary.
+                h_n.insert(hash, bnode_id);
+            };
+        };
+        // 3.1) For each component in quad, where component is the subject, object, or graph name,
+        // and it is a blank node that is not identified by identifier:
+        if let Object::BlankNode(bnode) = &quad.object {
+            let bnode_id = bnode.value();
+            if bnode_id != identifier {
+                // 3.1.1) Set hash to the result of the Hash Related Blank Node algorithm, passing
+                // the blank node identifier for component as related, quad, issuer, and position
+                // as either s, o, or g based on whether component is a subject, object, graph name,
+                // respectively.
+                let hash = hash_related_blank_node(
+                    state,
+                    &bnode_id,
+                    quad,
+                    issuer,
+                    HashRelatedBlankNodePosition::Object,
+                )?;
+                // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
+                // adding an entry as necessary.
+                h_n.insert(hash, bnode_id);
+            };
+        };
+        // 3.1) For each component in quad, where component is the subject, object, or graph name,
+        // and it is a blank node that is not identified by identifier:
+        if let Graph::BlankNode(bnode) = &quad.graph {
+            let bnode_id = bnode.value();
+            if bnode_id != identifier {
+                // 3.1.1) Set hash to the result of the Hash Related Blank Node algorithm, passing
+                // the blank node identifier for component as related, quad, issuer, and position
+                // as either s, o, or g based on whether component is a subject, object, graph name,
+                // respectively.
+                let hash = hash_related_blank_node(
+                    state,
+                    &bnode_id,
+                    quad,
+                    issuer,
+                    HashRelatedBlankNodePosition::Graph,
+                )?;
+                // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
+                // adding an entry as necessary.
+                h_n.insert(hash, bnode_id);
+            };
+        };
+    }
+
+    // dummy
+    Ok("dummy".to_string())
 }
 
 #[cfg(test)]
