@@ -177,10 +177,8 @@ fn hash_first_degree_quads(
 
     // 2) Get the list of quads quads from the map entry for reference
     // blank node identifier in the blank node to quads map.
-    let quads = canonicalization_state
-        .blank_node_to_quads_map
-        .get(reference_blank_node_identifier);
-    let quads = match quads {
+    let quads =
+        match canonicalization_state.get_quads_for_blank_node(reference_blank_node_identifier) {
         Some(q) => q,
         None => return Err(CanonicalizationError::QuadsNotExistError),
     };
