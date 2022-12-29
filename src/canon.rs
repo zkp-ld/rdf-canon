@@ -240,6 +240,21 @@ fn hash_first_degree_quads(
     hash(nquads.join(""))
 }
 
+enum HashRelatedBlankNodePosition {
+    Subject,
+    Object,
+    Graph,
+}
+impl HashRelatedBlankNodePosition {
+    fn serialize(&self) -> &str {
+        match self {
+            Self::Subject => "s",
+            Self::Object => "o",
+            Self::Graph => "g",
+        }
+    }
+}
+
 /// **4.8 Hash Related Blank Node**
 ///   This algorithm generates a hash for some blank node component of a quad, considering
 ///   its position within that quad. This is used as part of the Hash N-Degree Quads
@@ -250,14 +265,13 @@ fn hash_related_blank_node(
     related: &String,
     quad: &Quad,
     issuer: &IdentifierIssuer,
-    position: &String,
+    position: HashRelatedBlankNodePosition,
 ) -> Result<String, CanonicalizationError> {
     // 1) Initialize a string input to the value of position.
+    let input = match position {
+        HashRelatedBlankNodePosition::Graph => position.serialize().to_string(),
     // 2) If position is not g, append <, the value of the predicate in quad, and > to input.
-    let input = if position == &"g".to_string() {
-        position.to_string()
-    } else {
-        format!("{}<{}>", position, quad.predicate.value())
+        _ => format!("{}<{}>", position.serialize(), quad.predicate.value()),
     };
 
     // 3) If there is a canonical identifier for related, or an identifier issued by issuer,
@@ -451,7 +465,7 @@ mod tests {
             .issued_identifiers_map
             .insert("e2".to_string(), "c14n0".to_string());
         let issuer = IdentifierIssuer::new("b");
-        let position = "o".to_string();
+        let position = HashRelatedBlankNodePosition::Object;
         let e0 = BlankNode::new(None);
         let e2 = BlankNode::new(None);
         let p = NamedNode::new("http://example.com/#p");
@@ -463,7 +477,7 @@ mod tests {
             &Graph::DefaultGraph(default_graph),
         );
         let related_hash =
-            hash_related_blank_node(&state, &"e2".to_string(), &quad, &issuer, &position);
+            hash_related_blank_node(&state, &"e2".to_string(), &quad, &issuer, position);
         assert_eq!(
             related_hash.unwrap(),
             "29cf7e22790bc2ed395b81b3933e5329fc7b25390486085cac31ce7252ca60fa".to_string()
