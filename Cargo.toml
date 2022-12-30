@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 base16ct = "0.1.1"
+itertools = "0.10.5"
 nanoid = "0.4.0"
 sha2 = "0.10.6"
 thiserror = "1.0.38"

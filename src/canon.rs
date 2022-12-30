@@ -2,6 +2,7 @@ use crate::error::CanonicalizationError;
 use crate::nquads::SerializeNQuads;
 use crate::rdf::{BlankNode, Graph, Object, Quad, Subject, Term};
 use base16ct::lower::encode_str;
+use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 
@@ -14,7 +15,7 @@ pub struct CanonicalizationState {
 
     /// **hash to blank nodes map**
     ///   A map that relates a hash to a list of blank node identifiers.
-    hash_to_blank_node_map: HashMap<String, Vec<String>>,
+    hash_to_blank_node_map: BTreeMap<String, Vec<String>>,
 
     /// **canonical issuer**
     ///   An identifier issuer, initialized with the prefix c14n, for
@@ -28,7 +29,7 @@ impl CanonicalizationState {
     pub fn new() -> CanonicalizationState {
         CanonicalizationState {
             blank_node_to_quads_map: HashMap::<String, Vec<Quad>>::new(),
-            hash_to_blank_node_map: HashMap::<String, Vec<String>>::new(),
+            hash_to_blank_node_map: BTreeMap::<String, Vec<String>>::new(),
             canonical_issuer: IdentifierIssuer::new(Self::DEFAULT_CANONICAL_IDENTIFER_PREFIX),
         }
     }
@@ -63,6 +64,7 @@ impl CanonicalizationState {
 
 /// **4.4 Blank Node Identifier Issuer State**
 /// During the canonicalization algorithm, it is sometimes necessary to issue new identifiers to blank nodes. The Issue Identifier algorithm uses an identifier issuer to accomplish this task. The information an identifier issuer needs to keep track of is described below.
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct IdentifierIssuer {
     /// **identifier prefix**
     ///   The identifier prefix is a string that is used at the
@@ -116,10 +118,10 @@ impl IdentifierIssuer {
     /// **4.6.2 Algorithm**
     ///   The algorithm takes an identifier issuer I and an existing identifier as
     ///   inputs. The output is a new issued identifier.
-    pub fn issue(&mut self, existing_identifier: String) -> String {
+    pub fn issue(&mut self, existing_identifier: &String) -> String {
         // 1) If there is a map entry for existing identifier in issued identifiers
         // map of I, return it.
-        if let Some(issued_identifier) = self.get(&existing_identifier) {
+        if let Some(issued_identifier) = self.get(existing_identifier) {
             return issued_identifier;
         }
 
@@ -130,7 +132,7 @@ impl IdentifierIssuer {
         // 3) Add an entry mapping existing identifier to issued identifier to
         // the issued identifiers map of I.
         self.issued_identifiers_map
-            .insert(existing_identifier, issued_identifier.clone());
+            .insert(existing_identifier.clone(), issued_identifier.clone());
 
         // 4) Increment identifier counter.
         self.increment();
@@ -230,10 +232,8 @@ fn hash_first_degree_quads(
     }
 
     // 4) Sort nquads in Unicode code point order.
-    // TODO: check if `sort()` here is actually sorting in Unicode code point order
+    // TODO: check if `sort()` here is actually sorting in **Unicode code point order**
     nquads.sort();
-
-    println!("[debug] nquads: {}", nquads.join(""));
 
     // 5) Return the hash that results from passing the sorted and concatenated
     // nquads through the hash algorithm.
@@ -292,6 +292,24 @@ fn hash_related_blank_node(
     hash(input)
 }
 
+#[derive(PartialEq, Eq, Debug)]
+struct HashNDegreeQuadsResult {
+    hash: String,
+    issuer: IdentifierIssuer,
+}
+
+impl PartialOrd for HashNDegreeQuadsResult {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.hash.partial_cmp(&other.hash)
+    }
+}
+
+impl Ord for HashNDegreeQuadsResult {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.hash.cmp(&other.hash)
+    }
+}
+
 /// **4.9 Hash N-Degree Quads**
 ///   This algorithm calculates a hash for a given blank node across the quads in a dataset
 ///   in which that blank node is a component for which the hash does not uniquely identify
@@ -307,10 +325,12 @@ fn hash_related_blank_node(
 fn hash_n_degree_quads(
     state: &CanonicalizationState,
     identifier: String,
-    issuer: &IdentifierIssuer,
-) -> Result<String, CanonicalizationError> {
+    path_identifier_issuer: &IdentifierIssuer,
+) -> Result<HashNDegreeQuadsResult, CanonicalizationError> {
+    let mut issuer = path_identifier_issuer.clone();
+
     // 1) Create a new map Hn for relating hashes to related blank nodes.
-    let mut h_n = BTreeMap::<String, String>::new();
+    let mut h_n = BTreeMap::<String, Vec<String>>::new();
 
     // 2) Get a reference, quads, to the list of quads from the map entry for identifier
     // in the blank node to quads map.
@@ -334,12 +354,14 @@ fn hash_n_degree_quads(
                     state,
                     &bnode_id,
                     quad,
-                    issuer,
+                    &issuer,
                     HashRelatedBlankNodePosition::Subject,
                 )?;
                 // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
                 // adding an entry as necessary.
-                h_n.insert(hash, bnode_id);
+                h_n.entry(hash)
+                    .or_insert_with(Vec::<String>::new)
+                    .push(bnode_id);
             };
         };
         // 3.1) For each component in quad, where component is the subject, object, or graph name,
@@ -355,12 +377,14 @@ fn hash_n_degree_quads(
                     state,
                     &bnode_id,
                     quad,
-                    issuer,
+                    &issuer,
                     HashRelatedBlankNodePosition::Object,
                 )?;
                 // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
                 // adding an entry as necessary.
-                h_n.insert(hash, bnode_id);
+                h_n.entry(hash)
+                    .or_insert_with(Vec::<String>::new)
+                    .push(bnode_id);
             };
         };
         // 3.1) For each component in quad, where component is the subject, object, or graph name,
@@ -376,18 +400,121 @@ fn hash_n_degree_quads(
                     state,
                     &bnode_id,
                     quad,
-                    issuer,
+                    &issuer,
                     HashRelatedBlankNodePosition::Graph,
                 )?;
                 // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
                 // adding an entry as necessary.
-                h_n.insert(hash, bnode_id);
+                h_n.entry(hash)
+                    .or_insert_with(Vec::<String>::new)
+                    .push(bnode_id);
             };
         };
     }
 
-    // dummy
-    Ok("dummy".to_string())
+    // 4) Create an empty string, data to hash.
+    let mut data_to_hash = Vec::<String>::new();
+
+    // 5) For each related hash to blank node list mapping in Hn, code point ordered by related hash:
+    // TODO: check if keys in BTreeMap is actually sorted in **code point order**
+    for (related_hash, blank_node_list) in h_n {
+        // 5.1) Append the related hash to the data to hash.
+        data_to_hash.push(related_hash);
+
+        // 5.2) Create a string chosen path.
+        let mut chosen_path = String::new();
+
+        // 5.3) Create an unset chosen issuer variable.
+        let mut chosen_issuer = IdentifierIssuer::new("UNSET");
+
+        // 5.4) For each permutation p of blank node list:
+        'perm_loop: for p in blank_node_list.iter().permutations(blank_node_list.len()) {
+            // 5.4.1) Create a copy of issuer, issuer copy.
+            let mut issuer_copy = issuer.clone();
+
+            // 5.4.2) Create a string path.
+            let mut path_vec = Vec::<String>::new();
+
+            // 5.4.3) Create a recursion list, to store blank node identifiers that must be
+            // recursively processed by this algorithm.
+            let mut recursion_list = Vec::<&String>::new();
+
+            // 5.4.4) For each related in p:
+            for related in p {
+                if let Some(canonical_identifier) = state.canonical_issuer.get(related) {
+                    // 5.4.4.1) If a canonical identifier has been issued for related by
+                    // canonical issuer, append the string _:, followed by the canonical
+                    // identifier for related, to path.
+                    path_vec.push(format!("_:{}", canonical_identifier));
+                } else {
+                    // 5.4.4.2) Otherwise:
+                    // 5.4.4.2.1) If issuer copy has not issued an identifier for
+                    // related, append related to recursion list.
+                    if issuer_copy.get(related).is_none() {
+                        recursion_list.push(related);
+                    }
+                    // 5.4.4.2.2) Use the Issue Identifier algorithm, passing issuer
+                    // copy and related, and append the string _:, followed by the result,
+                    // to path.
+                    path_vec.push(format!("_:{}", issuer_copy.issue(related)));
+                }
+                // 5.4.4.3) If chosen path is not empty and the length of path is greater
+                // than or equal to the length of chosen path and path is greater than
+                // chosen path when considering code point order, then skip to the next
+                // permutation p.
+                let path = path_vec.join("");
+                if !chosen_path.is_empty() && path.len() >= chosen_path.len() && path >= chosen_path
+                {
+                    continue 'perm_loop;
+                }
+            }
+
+            // 5.4.5) For each related in recursion list:
+            for related in recursion_list {
+                // 5.4.5.1) Set result to the result of recursively executing the Hash
+                // N-Degree Quads algorithm, passing the canonicalization state, related
+                // for identifier, and issuer copy for path identifier issuer.
+                let result = hash_n_degree_quads(state, related.clone(), &issuer_copy)?;
+                // 5.4.5.2) Use the Issue Identifier algorithm, passing issuer copy and
+                // related; append the string _:, followed by the result, to path.
+                path_vec.push(format!("_:{}", issuer_copy.issue(related)));
+                // 5.4.5.3) Append <, the hash in result, and > to path.
+                path_vec.push("<".to_string());
+                path_vec.push(result.hash);
+                path_vec.push(">".to_string());
+                // 5.4.5.4) Set issuer copy to the identifier issuer in result.
+                issuer_copy = result.issuer;
+                // 5.4.5.5) If chosen path is not empty and the length of path is greater
+                // than or equal to the length of chosen path and path is greater than
+                // chosen path when considering code point order, then skip to the next p.
+                let path = path_vec.join("");
+                if !chosen_path.is_empty() && path.len() >= chosen_path.len() && path >= chosen_path
+                {
+                    continue 'perm_loop;
+                }
+            }
+
+            // 5.4.6) If chosen path is empty or path is less than chosen path when
+            // considering code point order, set chosen path to path and chosen issuer to
+            // issuer copy.
+            let path = path_vec.join("");
+            if chosen_path.is_empty() || path < chosen_path {
+                chosen_path = path;
+                chosen_issuer = issuer_copy;
+            }
+        }
+
+        // 5.5) Append chosen path to data to hash.
+        data_to_hash.push(chosen_path);
+
+        // 5.6) Replace issuer, by reference, with chosen issuer.
+        issuer = chosen_issuer;
+    }
+
+    // 6) Return issuer and the hash that results from passing data to hash through the
+    // hash algorithm.
+    let hash = hash(data_to_hash.join(""))?;
+    Ok(HashNDegreeQuadsResult { hash, issuer })
 }
 
 #[cfg(test)]
@@ -399,35 +526,35 @@ mod tests {
     fn test_issue_identifier() {
         let mut canonical_issuer = IdentifierIssuer::new("c14n");
         assert_eq!(
-            canonical_issuer.issue("b0".to_string()),
+            canonical_issuer.issue(&"b0".to_string()),
             "c14n0".to_string()
         );
         assert_eq!(
-            canonical_issuer.issue("b1".to_string()),
+            canonical_issuer.issue(&"b1".to_string()),
             "c14n1".to_string()
         );
         assert_eq!(
-            canonical_issuer.issue("b99".to_string()),
+            canonical_issuer.issue(&"b99".to_string()),
             "c14n2".to_string()
         );
         assert_eq!(
-            canonical_issuer.issue("xyz".to_string()),
+            canonical_issuer.issue(&"xyz".to_string()),
             "c14n3".to_string()
         );
         assert_eq!(
-            canonical_issuer.issue("xyz".to_string()),
+            canonical_issuer.issue(&"xyz".to_string()),
             "c14n3".to_string()
         );
         assert_eq!(
-            canonical_issuer.issue("b99".to_string()),
+            canonical_issuer.issue(&"b99".to_string()),
             "c14n2".to_string()
         );
         assert_eq!(
-            canonical_issuer.issue("b1".to_string()),
+            canonical_issuer.issue(&"b1".to_string()),
             "c14n1".to_string()
         );
         assert_eq!(
-            canonical_issuer.issue("b0".to_string()),
+            canonical_issuer.issue(&"b0".to_string()),
             "c14n0".to_string()
         );
     }
@@ -448,27 +575,27 @@ mod tests {
         let input_dataset = vec![
             Quad::new(
                 &Subject::NamedNode(p.clone()),
-                &Predicate::NamedNode(q.clone()),
+                &Predicate::NamedNode(q),
                 &Object::BlankNode(e0.clone()),
                 &Graph::DefaultGraph(default_graph.clone()),
             ),
             Quad::new(
-                &Subject::NamedNode(p.clone()),
-                &Predicate::NamedNode(r.clone()),
+                &Subject::NamedNode(p),
+                &Predicate::NamedNode(r),
                 &Object::BlankNode(e1.clone()),
                 &Graph::DefaultGraph(default_graph.clone()),
             ),
             Quad::new(
                 &Subject::BlankNode(e0.clone()),
-                &Predicate::NamedNode(s.clone()),
+                &Predicate::NamedNode(s),
                 &Object::NamedNode(u.clone()),
                 &Graph::DefaultGraph(default_graph.clone()),
             ),
             Quad::new(
                 &Subject::BlankNode(e1.clone()),
-                &Predicate::NamedNode(t.clone()),
-                &Object::NamedNode(u.clone()),
-                &Graph::DefaultGraph(default_graph.clone()),
+                &Predicate::NamedNode(t),
+                &Object::NamedNode(u),
+                &Graph::DefaultGraph(default_graph),
             ),
         ];
 
@@ -507,7 +634,7 @@ mod tests {
             ),
             Quad::new(
                 &Subject::NamedNode(p.clone()),
-                &Predicate::NamedNode(q.clone()),
+                &Predicate::NamedNode(q),
                 &Object::BlankNode(e1.clone()),
                 &Graph::DefaultGraph(default_graph.clone()),
             ),
@@ -519,15 +646,15 @@ mod tests {
             ),
             Quad::new(
                 &Subject::BlankNode(e1.clone()),
-                &Predicate::NamedNode(p.clone()),
+                &Predicate::NamedNode(p),
                 &Object::BlankNode(e3.clone()),
                 &Graph::DefaultGraph(default_graph.clone()),
             ),
             Quad::new(
                 &Subject::BlankNode(e2.clone()),
-                &Predicate::NamedNode(r.clone()),
+                &Predicate::NamedNode(r),
                 &Object::BlankNode(e3.clone()),
-                &Graph::DefaultGraph(default_graph.clone()),
+                &Graph::DefaultGraph(default_graph),
             ),
         ];
 
@@ -580,5 +707,95 @@ mod tests {
             related_hash.unwrap(),
             "29cf7e22790bc2ed395b81b3933e5329fc7b25390486085cac31ce7252ca60fa".to_string()
         );
+    }
+
+    #[test]
+    fn test_hash_n_degree_quads() {
+        let mut state = CanonicalizationState::new();
+
+        let e0 = BlankNode::new(None);
+        let e1 = BlankNode::new(None);
+        let e2 = BlankNode::new(None);
+        let e3 = BlankNode::new(None);
+        let p = NamedNode::new("http://example.com/#p");
+        let q = NamedNode::new("http://example.com/#q");
+        let r = NamedNode::new("http://example.com/#r");
+        let default_graph = DefaultGraph::new();
+        let input_dataset = vec![
+            Quad::new(
+                &Subject::NamedNode(p.clone()),
+                &Predicate::NamedNode(q.clone()),
+                &Object::BlankNode(e0.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::NamedNode(p.clone()),
+                &Predicate::NamedNode(q),
+                &Object::BlankNode(e1.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e0.clone()),
+                &Predicate::NamedNode(p.clone()),
+                &Object::BlankNode(e2.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e1.clone()),
+                &Predicate::NamedNode(p),
+                &Object::BlankNode(e3.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e2.clone()),
+                &Predicate::NamedNode(r),
+                &Object::BlankNode(e3.clone()),
+                &Graph::DefaultGraph(default_graph),
+            ),
+        ];
+
+        state.update_blank_node_to_quads_map(&input_dataset);
+
+        for (n, quads) in state.blank_node_to_quads_map.iter() {
+            let hash = hash_first_degree_quads(&state, n).unwrap();
+            state
+                .hash_to_blank_node_map
+                .entry(hash)
+                .or_insert_with(Vec::<String>::new)
+                .push(n.clone());
+        }
+
+        let mut new_hash_to_blank_node_map = state.hash_to_blank_node_map.clone();
+        for (hash, identifier_list) in state.hash_to_blank_node_map.iter() {
+            if identifier_list.len() > 1 {
+                continue;
+            }
+            let identifier = &identifier_list[0];
+            state.canonical_issuer.issue(identifier);
+            new_hash_to_blank_node_map.remove(hash);
+        }
+        state.hash_to_blank_node_map = new_hash_to_blank_node_map;
+
+        for (hash, identifier_list) in state.hash_to_blank_node_map.iter() {
+            let mut hash_path_list = Vec::<HashNDegreeQuadsResult>::new();
+            for n in identifier_list {
+                if state.canonical_issuer.get(n).is_some() {
+                    continue;
+                }
+                let mut temporary_issuer = IdentifierIssuer::new("b");
+                temporary_issuer.issue(n);
+                let result = hash_n_degree_quads(&state, n.clone(), &temporary_issuer).unwrap();
+                hash_path_list.push(result);
+            }
+            hash_path_list.sort();
+            assert_eq!(
+                hash_path_list[0].hash,
+                "2c0b377baf86f6c18fed4b0df6741290066e73c932861749b172d1e5560f5045"
+            );
+            assert_eq!(
+                hash_path_list[1].hash,
+                "fbc300de5afafd97a4b9ee1e72b57754dcdcb7ebb724789ac6a94a5b82a48d30"
+            );
+        }
     }
 }
