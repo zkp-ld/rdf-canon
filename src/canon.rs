@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 
 /// **4.3 Canonicalization State**
-pub struct CanonicalizationState {
+struct CanonicalizationState {
     /// **blank node to quads map**
     ///   A map that relates a blank node identifier to the quads
     ///   in which they appear in the input dataset.
@@ -26,7 +26,7 @@ pub struct CanonicalizationState {
 impl CanonicalizationState {
     const DEFAULT_CANONICAL_IDENTIFER_PREFIX: &str = "c14n";
 
-    pub fn new() -> CanonicalizationState {
+    fn new() -> CanonicalizationState {
         CanonicalizationState {
             blank_node_to_quads_map: HashMap::<String, Vec<Quad>>::new(),
             hash_to_blank_node_map: BTreeMap::<String, Vec<String>>::new(),
@@ -35,19 +35,30 @@ impl CanonicalizationState {
     }
 
     fn update_blank_node_to_quads_map(&mut self, dataset: &[Quad]) {
+        // **4.5.3 Algorithm**
+        // 2) For every quad Q in input dataset:
         for quad in dataset.iter() {
+            // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
+            // entry for the blank node identifier identifier in the blank node to quads map,
+            // creating a new entry if necessary.
             if let Subject::BlankNode(n) = &quad.subject {
                 self.blank_node_to_quads_map
                     .entry(n.value().clone())
                     .or_insert_with(Vec::<Quad>::new)
                     .push(quad.clone());
             }
+            // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
+            // entry for the blank node identifier identifier in the blank node to quads map,
+            // creating a new entry if necessary.
             if let Object::BlankNode(n) = &quad.object {
                 self.blank_node_to_quads_map
                     .entry(n.value().clone())
                     .or_insert_with(Vec::<Quad>::new)
                     .push(quad.clone());
             }
+            // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
+            // entry for the blank node identifier identifier in the blank node to quads map,
+            // creating a new entry if necessary.
             if let Graph::BlankNode(n) = &quad.graph {
                 self.blank_node_to_quads_map
                     .entry(n.value().clone())
@@ -65,7 +76,7 @@ impl CanonicalizationState {
 /// **4.4 Blank Node Identifier Issuer State**
 /// During the canonicalization algorithm, it is sometimes necessary to issue new identifiers to blank nodes. The Issue Identifier algorithm uses an identifier issuer to accomplish this task. The information an identifier issuer needs to keep track of is described below.
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct IdentifierIssuer {
+struct IdentifierIssuer {
     /// **identifier prefix**
     ///   The identifier prefix is a string that is used at the
     ///   beginning of an blank node identifier. It should be initialized
@@ -90,7 +101,7 @@ pub struct IdentifierIssuer {
 }
 
 impl IdentifierIssuer {
-    pub fn new(identifier_prefix: &str) -> IdentifierIssuer {
+    fn new(identifier_prefix: &str) -> IdentifierIssuer {
         let issued_identifiers_map = BTreeMap::<String, String>::new();
         IdentifierIssuer {
             identifier_prefix: identifier_prefix.to_string(),
@@ -99,11 +110,11 @@ impl IdentifierIssuer {
         }
     }
 
-    pub fn increment(&mut self) {
+    fn increment(&mut self) {
         self.identifier_counter += 1
     }
 
-    pub fn get(&self, existing_identifier: &String) -> Option<String> {
+    fn get(&self, existing_identifier: &String) -> Option<String> {
         self.issued_identifiers_map
             .get(existing_identifier)
             .cloned()
@@ -118,7 +129,7 @@ impl IdentifierIssuer {
     /// **4.6.2 Algorithm**
     ///   The algorithm takes an identifier issuer I and an existing identifier as
     ///   inputs. The output is a new issued identifier.
-    pub fn issue(&mut self, existing_identifier: &String) -> String {
+    fn issue(&mut self, existing_identifier: &String) -> String {
         // 1) If there is a map entry for existing identifier in issued identifiers
         // map of I, return it.
         if let Some(issued_identifier) = self.get(existing_identifier) {
@@ -155,8 +166,154 @@ fn hash(data: impl AsRef<[u8]>) -> Result<String, CanonicalizationError> {
     let hex_hash = encode_str(&hash, &mut buf);
     match hex_hash {
         Ok(h) => Ok(h.to_string()),
-        Err(e) => Err(CanonicalizationError::Base16EncodingError(e)),
+        Err(e) => Err(CanonicalizationError::Base16EncodingFailed(e)),
     }
+}
+
+impl Quad {
+    fn canonicalize(&self, issuer: &IdentifierIssuer) -> Result<Quad, CanonicalizationError> {
+        Ok(Quad::new(
+            &self.subject.canonicalize(issuer)?,
+            &self.predicate,
+            &self.object.canonicalize(issuer)?,
+            &self.graph.canonicalize(issuer)?,
+        ))
+    }
+}
+
+impl Subject {
+    fn canonicalize(&self, issuer: &IdentifierIssuer) -> Result<Subject, CanonicalizationError> {
+        match self {
+            Self::BlankNode(blank_node) => match blank_node.canonicalize(issuer) {
+                Ok(canonicalized_blank_node) => Ok(Self::BlankNode(canonicalized_blank_node)),
+                Err(e) => Err(e),
+            },
+            _ => Ok(self.clone()),
+        }
+    }
+}
+
+impl Object {
+    fn canonicalize(&self, issuer: &IdentifierIssuer) -> Result<Object, CanonicalizationError> {
+        match self {
+            Self::BlankNode(blank_node) => match blank_node.canonicalize(issuer) {
+                Ok(canonicalized_blank_node) => Ok(Self::BlankNode(canonicalized_blank_node)),
+                Err(e) => Err(e),
+            },
+            _ => Ok(self.clone()),
+        }
+    }
+}
+
+impl Graph {
+    fn canonicalize(&self, issuer: &IdentifierIssuer) -> Result<Graph, CanonicalizationError> {
+        match self {
+            Self::BlankNode(blank_node) => match blank_node.canonicalize(issuer) {
+                Ok(canonicalized_blank_node) => Ok(Self::BlankNode(canonicalized_blank_node)),
+                Err(e) => Err(e),
+            },
+            _ => Ok(self.clone()),
+        }
+    }
+}
+
+impl BlankNode {
+    fn canonicalize(&self, issuer: &IdentifierIssuer) -> Result<BlankNode, CanonicalizationError> {
+        let canonical_identifier = issuer.get(&self.value());
+        match canonical_identifier {
+            Some(id) => Ok(BlankNode::new(Some(&id))),
+            None => Err(CanonicalizationError::CanonicalIdentifierNotExist),
+        }
+    }
+}
+
+/// **4.5 Canonicalization Algorithm**
+///   The canonicalization algorithm converts an input dataset into a normalized dataset.
+///   This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
+pub fn canonicalize(input_dataset: &Vec<Quad>) -> Result<Vec<Quad>, CanonicalizationError> {
+    // 1) Create the canonicalization state.
+    let mut state = CanonicalizationState::new();
+    // 2) For every quad Q in input dataset:
+    // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
+    // entry for the blank node identifier identifier in the blank node to quads map,
+    // creating a new entry if necessary.
+    state.update_blank_node_to_quads_map(input_dataset);
+
+    // 3) For each key n in the blank node to quads map:
+    for (n, quads) in state.blank_node_to_quads_map.iter() {
+        // 3.1) Create a hash, h_f(n), for n according to the Hash First Degree Quads algorithm.
+        let hash = hash_first_degree_quads(&state, n).unwrap();
+        // 3.2) Add h_f(n) and n to hash to blank nodes map, including repetitions, creating a new entry if necessary.
+        state
+            .hash_to_blank_node_map
+            .entry(hash)
+            .or_insert_with(Vec::<String>::new)
+            .push(n.clone());
+    }
+
+    // 4) For each hash to identifier list map entry in hash to blank nodes map, code point ordered by hash:
+    // TODO: check if `sort()` here is actually sorting in **Unicode code point order**
+    let mut new_hash_to_blank_node_map = state.hash_to_blank_node_map.clone();
+    for (hash, identifier_list) in state.hash_to_blank_node_map.iter() {
+        // 4.1) If identifier list has more than one entry, continue to the next mapping.
+        if identifier_list.len() > 1 {
+            continue;
+        }
+        let identifier = &identifier_list[0];
+        // 4.2) Use the Issue Identifier algorithm, passing canonical issuer and the single blank node identifier,
+        // identifier in identifier list to issue a canonical replacement identifier for identifier.
+        state.canonical_issuer.issue(identifier);
+        // 4.3) Remove the map entry for hash from the hash to blank nodes map.
+        new_hash_to_blank_node_map.remove(hash);
+    }
+    state.hash_to_blank_node_map = new_hash_to_blank_node_map;
+
+    // 5) For each hash to identifier list map entry in hash to blank nodes map, code point ordered by hash:
+    for (hash, identifier_list) in state.hash_to_blank_node_map.iter() {
+        // 5.1) Create hash path list where each item will be a result of running the Hash N-Degree Quads algorithm.
+        let mut hash_path_list = Vec::<HashNDegreeQuadsResult>::new();
+        // 5.2) For each blank node identifier n in identifier list:
+        for n in identifier_list {
+            // 5.2.1) If a canonical identifier has already been issued for n, continue to the next blank node
+            // identifier.
+            if state.canonical_issuer.get(n).is_some() {
+                continue;
+            }
+            // 5.2.2) Create temporary issuer, an identifier issuer initialized with the prefix b.
+            let mut temporary_issuer = IdentifierIssuer::new("b");
+            // 5.2.3) Use the Issue Identifier algorithm, passing temporary issuer and n, to issue a new temporary
+            // blank node identifier b_n to n.
+            temporary_issuer.issue(n);
+            // 5.2.4) Run the Hash N-Degree Quads algorithm, passing the canonicalization state, n for identifier,
+            // and temporary issuer, appending the result to the hash path list.
+            let result = hash_n_degree_quads(&state, n.clone(), &temporary_issuer).unwrap();
+            hash_path_list.push(result);
+        }
+        // 5.3) For each result in the hash path list, code point ordered by the hash in result:
+        hash_path_list.sort();
+        for result in hash_path_list.iter() {
+            // 5.3.1) For each blank node identifier, existing identifier, that was issued a temporary identifier
+            // by identifier issuer in result, issue a canonical identifier, in the same order, using the Issue
+            // Identifier algorithm, passing canonical issuer and existing identifier.
+            for (existing_identifier, _temporary_identifier) in
+                result.issuer.issued_identifiers_map.iter()
+            {
+                state.canonical_issuer.issue(existing_identifier);
+            }
+        }
+    }
+
+    // 6) For each quad, q, in input dataset:
+    // 6.1) Create a copy, quad copy, of q and replace any existing blank node identifier n using the
+    // canonical identifiers previously issued by canonical issuer.
+    // 6.2) Add quad copy to the normalized dataset.
+    let normalized_dataset: Result<Vec<Quad>, CanonicalizationError> = input_dataset
+        .into_iter()
+        .map(|q| q.canonicalize(&state.canonical_issuer))
+        .collect();
+
+    // 7) Return the normalized dataset.
+    normalized_dataset
 }
 
 /// **4.7 Hash First Degree Quads**
@@ -182,7 +339,7 @@ fn hash_first_degree_quads(
     let quads =
         match canonicalization_state.get_quads_for_blank_node(reference_blank_node_identifier) {
             Some(q) => q,
-            None => return Err(CanonicalizationError::QuadsNotExistError),
+            None => return Err(CanonicalizationError::QuadsNotExist),
         };
 
     // 3) For each quad quad in quads:
@@ -336,7 +493,7 @@ fn hash_n_degree_quads(
     // in the blank node to quads map.
     let quads = match state.get_quads_for_blank_node(&identifier) {
         Some(q) => q,
-        None => return Err(CanonicalizationError::QuadsNotExistError),
+        None => return Err(CanonicalizationError::QuadsNotExist),
     };
 
     // 3) For each quad in quads:
@@ -797,5 +954,59 @@ mod tests {
                 "fbc300de5afafd97a4b9ee1e72b57754dcdcb7ebb724789ac6a94a5b82a48d30"
             );
         }
+    }
+
+    #[test]
+    fn test_canonicalize() {
+        let e0 = BlankNode::new(None);
+        let e1 = BlankNode::new(None);
+        let e2 = BlankNode::new(None);
+        let e3 = BlankNode::new(None);
+        let p = NamedNode::new("http://example.com/#p");
+        let q = NamedNode::new("http://example.com/#q");
+        let r = NamedNode::new("http://example.com/#r");
+        let default_graph = DefaultGraph::new();
+        let input_dataset = vec![
+            Quad::new(
+                &Subject::NamedNode(p.clone()),
+                &Predicate::NamedNode(q.clone()),
+                &Object::BlankNode(e0.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::NamedNode(p.clone()),
+                &Predicate::NamedNode(q),
+                &Object::BlankNode(e1.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e0.clone()),
+                &Predicate::NamedNode(p.clone()),
+                &Object::BlankNode(e2.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e1.clone()),
+                &Predicate::NamedNode(p),
+                &Object::BlankNode(e3.clone()),
+                &Graph::DefaultGraph(default_graph.clone()),
+            ),
+            Quad::new(
+                &Subject::BlankNode(e2.clone()),
+                &Predicate::NamedNode(r),
+                &Object::BlankNode(e3.clone()),
+                &Graph::DefaultGraph(default_graph),
+            ),
+        ];
+        let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
+        canonicalized_dataset.sort();
+
+        let expected_output = r###"<http://example.com/#p> <http://example.com/#q> _:c14n2 .
+<http://example.com/#p> <http://example.com/#q> _:c14n3 .
+_:c14n0 <http://example.com/#r> _:c14n1 .
+_:c14n2 <http://example.com/#p> _:c14n1 .
+_:c14n3 <http://example.com/#p> _:c14n0 .
+"###;
+        assert_eq!(canonicalized_dataset.serialize(), expected_output);
     }
 }

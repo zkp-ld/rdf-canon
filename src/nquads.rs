@@ -91,6 +91,12 @@ impl SerializeNQuads for Quad {
     }
 }
 
+impl SerializeNQuads for Vec<Quad> {
+    fn serialize(&self) -> String {
+        self.iter().map(|q| q.serialize()).collect::<String>()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

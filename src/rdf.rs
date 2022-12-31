@@ -3,6 +3,8 @@
 // to generate blank node identifiers as short uuids
 use nanoid::nanoid;
 
+use crate::nquads::SerializeNQuads;
+
 /// The subject, which is a NamedNode, BlankNode, Variable or Quad.
 /// NOTE: We do not currently support Quad as a subject here.
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -348,6 +350,18 @@ impl Quad {
             object: object.clone(),
             graph: graph.clone(),
         }
+    }
+}
+
+impl PartialOrd for Quad {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.serialize().partial_cmp(&other.serialize())
+    }
+}
+
+impl Ord for Quad {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.serialize().cmp(&other.serialize())
     }
 }
 
