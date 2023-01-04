@@ -1,6 +1,6 @@
 use crate::rdf::{
     BlankNode, DefaultGraph, Graph, Literal, NamedNode, Object, Predicate, Quad, Subject, Term,
-    Variable,
+    Variable, XSD_STRING,
 };
 use nom::branch::{alt, permutation};
 use nom::bytes::complete::tag;
@@ -32,6 +32,8 @@ impl SerializeNQuads for Literal {
             (Some(lang), _) => format!("\"{}\"@{}", value, lang),
             // If there is no language tag, there may be a datatype IRI, preceded
             // by '^^' (U+005E U+005E).
+            // NOTE: xsd:string is implicitly expressed here
+            (None, Some(dt)) if dt.value() == XSD_STRING => format!("\"{}\"", value),
             (None, Some(dt)) => format!("\"{}\"^^<{}>", value, dt.value()),
             // If there is no datatype IRI and no language tag, the datatype is xsd:string.
             (None, None) => value.to_string(),

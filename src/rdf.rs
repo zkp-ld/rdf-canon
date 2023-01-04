@@ -1,9 +1,11 @@
 /// RDF data interfaces based on
 /// [RDF/JS: Data model specification](https://rdf.js.org/data-model-spec/)
 // to generate blank node identifiers as short uuids
+use crate::nquads::SerializeNQuads;
 use nanoid::nanoid;
 
-use crate::nquads::SerializeNQuads;
+pub const XSD_STRING: &str = "http://www.w3.org/2001/XMLSchema#string";
+pub const XSD_LANGSTRING: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString";
 
 /// The subject, which is a NamedNode, BlankNode, Variable or Quad.
 /// NOTE: We do not currently support Quad as a subject here.
@@ -203,14 +205,12 @@ impl Literal {
                 Some(language) => Literal {
                     value: value.to_string(),
                     language: Some(language.to_string()),
-                    datatype: Some(NamedNode::new(
-                        "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString",
-                    )),
+                    datatype: Some(NamedNode::new(XSD_LANGSTRING)),
                 },
                 None => Literal {
                     value: value.to_string(),
                     language: None,
-                    datatype: Some(NamedNode::new("http://www.w3.org/2001/XMLSchema#string")),
+                    datatype: Some(NamedNode::new(XSD_STRING)),
                 },
             },
         }
