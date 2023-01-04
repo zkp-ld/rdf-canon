@@ -11,7 +11,7 @@ struct CanonicalizationState {
     /// **blank node to quads map**
     ///   A map that relates a blank node identifier to the quads
     ///   in which they appear in the input dataset.
-    blank_node_to_quads_map: HashMap<String, Vec<Quad>>,
+    blank_node_to_quads_map: BTreeMap<String, Vec<Quad>>,
 
     /// **hash to blank nodes map**
     ///   A map that relates a hash to a list of blank node identifiers.
@@ -28,7 +28,7 @@ impl CanonicalizationState {
 
     fn new() -> CanonicalizationState {
         CanonicalizationState {
-            blank_node_to_quads_map: HashMap::<String, Vec<Quad>>::new(),
+            blank_node_to_quads_map: BTreeMap::<String, Vec<Quad>>::new(),
             hash_to_blank_node_map: BTreeMap::<String, Vec<String>>::new(),
             canonical_issuer: IdentifierIssuer::new(Self::DEFAULT_CANONICAL_IDENTIFER_PREFIX),
         }
