@@ -677,7 +677,10 @@ fn hash_n_degree_quads(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rdf::{DefaultGraph, NamedNode, Predicate};
+    use crate::{
+        nquads::parse,
+        rdf::{DefaultGraph, NamedNode, Predicate},
+    };
 
     #[test]
     fn test_issue_identifier() {
@@ -958,55 +961,22 @@ mod tests {
 
     #[test]
     fn test_canonicalize() {
-        let e0 = BlankNode::new(None);
-        let e1 = BlankNode::new(None);
-        let e2 = BlankNode::new(None);
-        let e3 = BlankNode::new(None);
-        let p = NamedNode::new("http://example.com/#p");
-        let q = NamedNode::new("http://example.com/#q");
-        let r = NamedNode::new("http://example.com/#r");
-        let default_graph = DefaultGraph::new();
-        let input_dataset = vec![
-            Quad::new(
-                &Subject::NamedNode(p.clone()),
-                &Predicate::NamedNode(q.clone()),
-                &Object::BlankNode(e0.clone()),
-                &Graph::DefaultGraph(default_graph.clone()),
-            ),
-            Quad::new(
-                &Subject::NamedNode(p.clone()),
-                &Predicate::NamedNode(q),
-                &Object::BlankNode(e1.clone()),
-                &Graph::DefaultGraph(default_graph.clone()),
-            ),
-            Quad::new(
-                &Subject::BlankNode(e0.clone()),
-                &Predicate::NamedNode(p.clone()),
-                &Object::BlankNode(e2.clone()),
-                &Graph::DefaultGraph(default_graph.clone()),
-            ),
-            Quad::new(
-                &Subject::BlankNode(e1.clone()),
-                &Predicate::NamedNode(p),
-                &Object::BlankNode(e3.clone()),
-                &Graph::DefaultGraph(default_graph.clone()),
-            ),
-            Quad::new(
-                &Subject::BlankNode(e2.clone()),
-                &Predicate::NamedNode(r),
-                &Object::BlankNode(e3.clone()),
-                &Graph::DefaultGraph(default_graph),
-            ),
-        ];
+        let input_dataset = r#"<http://example.com/#p> <http://example.com/#q> _:e0 .
+<http://example.com/#p> <http://example.com/#q> _:e1 .
+_:e0 <http://example.com/#p> _:e2 .
+_:e1 <http://example.com/#p> _:e3 .
+_:e2 <http://example.com/#r> _:e3 .
+"#;
+        let input_dataset = parse(input_dataset).unwrap();
         let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
         canonicalized_dataset.sort();
 
-        let expected_output = r###"<http://example.com/#p> <http://example.com/#q> _:c14n2 .
+        let expected_output = r#"<http://example.com/#p> <http://example.com/#q> _:c14n2 .
 <http://example.com/#p> <http://example.com/#q> _:c14n3 .
 _:c14n0 <http://example.com/#r> _:c14n1 .
 _:c14n2 <http://example.com/#p> _:c14n1 .
 _:c14n3 <http://example.com/#p> _:c14n0 .
-"###;
+"#;
         assert_eq!(canonicalized_dataset.serialize(), expected_output);
     }
 }
