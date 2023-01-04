@@ -681,6 +681,19 @@ mod tests {
         nquads::parse,
         rdf::{DefaultGraph, NamedNode, Predicate},
     };
+    use nom::{
+        branch::{alt, permutation},
+        bytes::complete::tag,
+        character::complete::digit1,
+        combinator::map,
+        sequence::delimited,
+        IResult,
+    };
+    use std::{
+        fs::{self, File},
+        io::Read,
+        path::Path,
+    };
 
     #[test]
     fn test_issue_identifier() {
@@ -960,7 +973,7 @@ mod tests {
     }
 
     #[test]
-    fn test_canonicalize() {
+    fn test_canonicalize_sample() {
         let input_dataset = r#"<http://example.com/#p> <http://example.com/#q> _:e0 .
 <http://example.com/#p> <http://example.com/#q> _:e1 .
 _:e0 <http://example.com/#p> _:e2 .
@@ -978,5 +991,49 @@ _:c14n2 <http://example.com/#p> _:c14n1 .
 _:c14n3 <http://example.com/#p> _:c14n0 .
 "#;
         assert_eq!(canonicalized_dataset.serialize(), expected_output);
+    }
+
+    #[test]
+    fn test_canonicalize() {
+        const BASE_PATH: &str = "tests/urdna2015";
+
+        fn read_nquads(path: &str) -> Option<String> {
+            let path = Path::new(&path);
+            let mut file = match File::open(path) {
+                Err(_) => return None,
+                Ok(file) => file,
+            };
+            let mut s = String::new();
+            match file.read_to_string(&mut s) {
+                Err(why) => panic!("couldn't read {}: {}", path.display(), why),
+                Ok(_) => Some(s),
+            }
+        }
+
+        let mut i = 1;
+        loop {
+            let input_path = format!("{BASE_PATH}/test{:03}-in.nq", i);
+            let input = match read_nquads(&input_path) {
+                Some(s) => s,
+                None => break,
+            };
+            let output_path = format!("{BASE_PATH}/test{:03}-urdna2015.nq", i);
+            let output = match read_nquads(&output_path) {
+                Some(s) => s,
+                None => break,
+            };
+
+            let input_dataset = parse(&input).unwrap();
+            let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
+            canonicalized_dataset.sort();
+
+            assert_eq!(
+                canonicalized_dataset.serialize(),
+                output,
+                "Failed: test{:03}",
+                i
+            );
+            i += 1;
+        }
     }
 }
