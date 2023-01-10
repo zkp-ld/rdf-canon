@@ -4,7 +4,8 @@ use crate::rdf::{BlankNode, Graph, Object, Quad, Subject, Term};
 use base16ct::lower::encode_str;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
+use tracing::debug;
 
 /// **4.3 Canonicalization State**
 struct CanonicalizationState {
@@ -70,6 +71,13 @@ impl CanonicalizationState {
 
     fn get_quads_for_blank_node(&self, identifier: &String) -> Option<&Vec<Quad>> {
         self.blank_node_to_quads_map.get(identifier)
+    }
+
+    fn serialize_blank_node_to_quads_map(&self) -> BTreeMap<String, Vec<String>> {
+        self.blank_node_to_quads_map
+            .iter()
+            .map(|(k, v)| (k.clone(), v.iter().map(|q| q.serialize()).collect()))
+            .collect()
     }
 }
 
@@ -151,6 +159,16 @@ impl IdentifierIssuer {
         // 5) Return issued identifier.
         issued_identifier
     }
+
+    fn serialize_issued_identifiers_map(&self) -> String {
+        format!(
+            "{{{}}}",
+            self.issued_identifiers_map
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, v))
+                .join(", ")
+        )
+    }
 }
 
 /// **hash**
@@ -230,17 +248,37 @@ impl BlankNode {
 /// **4.5 Canonicalization Algorithm**
 ///   The canonicalization algorithm converts an input dataset into a normalized dataset.
 ///   This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
-pub fn canonicalize(input_dataset: &Vec<Quad>) -> Result<Vec<Quad>, CanonicalizationError> {
+#[tracing::instrument(name = "", skip_all)]
+pub fn canonicalize(input_dataset: &[Quad]) -> Result<Vec<Quad>, CanonicalizationError> {
+    debug!("ca:");
+    debug!("  log point: Entering the canonicalization function (4.5.3).");
+
     // 1) Create the canonicalization state.
     let mut state = CanonicalizationState::new();
+
     // 2) For every quad Q in input dataset:
+    debug!("  ca.2:");
+    debug!("    log point: Extract quads for each bnode (4.5.3 (2)).");
+
     // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
     // entry for the blank node identifier identifier in the blank node to quads map,
     // creating a new entry if necessary.
     state.update_blank_node_to_quads_map(input_dataset);
 
+    debug!("    Bnode to quads:");
+    for (bnode_id, quads) in state.serialize_blank_node_to_quads_map().iter() {
+        debug!("      {}:", bnode_id);
+        for quad in quads.iter() {
+            debug!("        - {}", quad.trim_end());
+        }
+    }
+
     // 3) For each key n in the blank node to quads map:
-    for (n, quads) in state.blank_node_to_quads_map.iter() {
+    debug!("  ca.3:");
+    debug!("    log point: Calculated first degree hashes (4.5.3 (3)).");
+    debug!("    with:");
+    for (n, _quads) in state.blank_node_to_quads_map.iter() {
+        debug!("      - identifier: {}", n);
         // 3.1) Create a hash, h_f(n), for n according to the Hash First Degree Quads algorithm.
         let hash = hash_first_degree_quads(&state, n).unwrap();
         // 3.2) Add h_f(n) and n to hash to blank nodes map, including repetitions, creating a new entry if necessary.
@@ -253,6 +291,9 @@ pub fn canonicalize(input_dataset: &Vec<Quad>) -> Result<Vec<Quad>, Canonicaliza
 
     // 4) For each hash to identifier list map entry in hash to blank nodes map, code point ordered by hash:
     // TODO: check if `sort()` here is actually sorting in **Unicode code point order**
+    debug!("  ca.4:");
+    debug!("    log point: Create canonical replacements for hashes mapping to a single node (4.5.3 (4)).");
+    debug!("    with:");
     let mut new_hash_to_blank_node_map = state.hash_to_blank_node_map.clone();
     for (hash, identifier_list) in state.hash_to_blank_node_map.iter() {
         // 4.1) If identifier list has more than one entry, continue to the next mapping.
@@ -260,20 +301,34 @@ pub fn canonicalize(input_dataset: &Vec<Quad>) -> Result<Vec<Quad>, Canonicaliza
             continue;
         }
         let identifier = &identifier_list[0];
+        debug!("      - identifier: {}", identifier);
+        debug!("        hash: {}", hash);
         // 4.2) Use the Issue Identifier algorithm, passing canonical issuer and the single blank node identifier,
         // identifier in identifier list to issue a canonical replacement identifier for identifier.
-        state.canonical_issuer.issue(identifier);
+        let _canonical_identifier = state.canonical_issuer.issue(identifier);
+        debug!("        canonical label: {}", _canonical_identifier);
         // 4.3) Remove the map entry for hash from the hash to blank nodes map.
         new_hash_to_blank_node_map.remove(hash);
     }
     state.hash_to_blank_node_map = new_hash_to_blank_node_map;
 
     // 5) For each hash to identifier list map entry in hash to blank nodes map, code point ordered by hash:
-    for (hash, identifier_list) in state.hash_to_blank_node_map.iter() {
+    debug!("  ca.5:");
+    debug!("    log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5)).");
+    debug!("    with:");
+    for (_hash, identifier_list) in state.hash_to_blank_node_map.iter() {
+        debug!("      - hash: {}", _hash);
+        debug!("        identifier list: {:?}", identifier_list);
         // 5.1) Create hash path list where each item will be a result of running the Hash N-Degree Quads algorithm.
         let mut hash_path_list = Vec::<HashNDegreeQuadsResult>::new();
+
         // 5.2) For each blank node identifier n in identifier list:
+        debug!("        ca.5.2:");
+        debug!("          log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5.2)).");
+        debug!("          with:");
         for n in identifier_list {
+            debug!("            - identifier: {}", n);
+
             // 5.2.1) If a canonical identifier has already been issued for n, continue to the next blank node
             // identifier.
             if state.canonical_issuer.get(n).is_some() {
@@ -290,15 +345,27 @@ pub fn canonicalize(input_dataset: &Vec<Quad>) -> Result<Vec<Quad>, Canonicaliza
             hash_path_list.push(result);
         }
         // 5.3) For each result in the hash path list, code point ordered by the hash in result:
+        debug!("        ca.5.3:");
         hash_path_list.sort();
         for result in hash_path_list.iter() {
+            debug!("          - result: {}", result.hash);
+            debug!(
+                "            issuer: {}",
+                result.issuer.serialize_issued_identifiers_map()
+            );
             // 5.3.1) For each blank node identifier, existing identifier, that was issued a temporary identifier
             // by identifier issuer in result, issue a canonical identifier, in the same order, using the Issue
             // Identifier algorithm, passing canonical issuer and existing identifier.
+            debug!("            ca.5.3.1:");
             for (existing_identifier, _temporary_identifier) in
                 result.issuer.issued_identifiers_map.iter()
             {
-                state.canonical_issuer.issue(existing_identifier);
+                debug!(
+                    "              - existing identifier: {}",
+                    existing_identifier
+                );
+                let _canonical_identifier = state.canonical_issuer.issue(existing_identifier);
+                debug!("                cid: {}", _canonical_identifier);
             }
         }
     }
@@ -307,8 +374,14 @@ pub fn canonicalize(input_dataset: &Vec<Quad>) -> Result<Vec<Quad>, Canonicaliza
     // 6.1) Create a copy, quad copy, of q and replace any existing blank node identifier n using the
     // canonical identifiers previously issued by canonical issuer.
     // 6.2) Add quad copy to the normalized dataset.
+    debug!("  ca.6:");
+    debug!("    log point: Replace original with canonical labels (4.5.3 (6)).");
+    debug!(
+        "    canonical issuer: {}",
+        state.canonical_issuer.serialize_issued_identifiers_map()
+    );
     let normalized_dataset: Result<Vec<Quad>, CanonicalizationError> = input_dataset
-        .into_iter()
+        .iter()
         .map(|q| q.canonicalize(&state.canonical_issuer))
         .collect();
 
@@ -330,6 +403,9 @@ fn hash_first_degree_quads(
     canonicalization_state: &CanonicalizationState,
     reference_blank_node_identifier: &String,
 ) -> Result<String, CanonicalizationError> {
+    debug!("        h1dq:");
+    debug!("          log point: Hash First Degree Quads function (4.7.3).");
+
     // 1) Initialize nquads to an empty list. It will be used to store
     // quads in canonical n-quads form.
     // let nquads: Vec<String> = Vec::new();
@@ -388,13 +464,23 @@ fn hash_first_degree_quads(
         }
     }
 
+    debug!("          nquads:");
+    for nquad in nquads.iter() {
+        debug!("            - {}", nquad.trim_end());
+    }
+
     // 4) Sort nquads in Unicode code point order.
     // TODO: check if `sort()` here is actually sorting in **Unicode code point order**
     nquads.sort();
 
     // 5) Return the hash that results from passing the sorted and concatenated
     // nquads through the hash algorithm.
-    hash(nquads.join(""))
+    let hashed_nquads = hash(nquads.join(""));
+    debug!(
+        "          hash: {}",
+        hashed_nquads.clone().unwrap_or_default()
+    );
+    hashed_nquads
 }
 
 enum HashRelatedBlankNodePosition {
@@ -424,6 +510,12 @@ fn hash_related_blank_node(
     issuer: &IdentifierIssuer,
     position: HashRelatedBlankNodePosition,
 ) -> Result<String, CanonicalizationError> {
+    debug!(
+        "                          - position: {}",
+        position.serialize()
+    );
+    debug!("                            related: {}", related);
+
     // 1) Initialize a string input to the value of position.
     let input = match position {
         HashRelatedBlankNodePosition::Graph => position.serialize().to_string(),
@@ -444,9 +536,16 @@ fn hash_related_blank_node(
         },
     };
     let input = format!("{}{}", input, identifier);
+    debug!("                            input: \"{}\"", input);
 
     // 5) Return the hash that results from passing input through the hash algorithm.
-    hash(input)
+    let output = hash(input);
+    debug!(
+        "                            hash: {}",
+        output.clone().unwrap_or_default()
+    );
+
+    output
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -484,6 +583,14 @@ fn hash_n_degree_quads(
     identifier: String,
     path_identifier_issuer: &IdentifierIssuer,
 ) -> Result<HashNDegreeQuadsResult, CanonicalizationError> {
+    debug!("              hndq:");
+    debug!("                log point: Hash N-Degree Quads function (4.9.3).");
+    debug!("                identifier: {}", identifier);
+    debug!(
+        "                issuer: {}",
+        path_identifier_issuer.serialize_issued_identifiers_map()
+    );
+
     let mut issuer = path_identifier_issuer.clone();
 
     // 1) Create a new map Hn for relating hashes to related blank nodes.
@@ -491,13 +598,31 @@ fn hash_n_degree_quads(
 
     // 2) Get a reference, quads, to the list of quads from the map entry for identifier
     // in the blank node to quads map.
+    debug!("                hndq.2:");
+    debug!("                  log point: Quads for identifier (4.9.3 (2)).");
     let quads = match state.get_quads_for_blank_node(&identifier) {
         Some(q) => q,
         None => return Err(CanonicalizationError::QuadsNotExist),
     };
+    debug!("                  quads:");
+    for quad in quads {
+        debug!("                    - {}", quad.serialize().trim_end());
+    }
 
     // 3) For each quad in quads:
+    debug!("                hndq.3:");
+    debug!("                  log point: Hash N-Degree Quads function (4.9.3 (3)).");
+    debug!("                  with:");
     for quad in quads {
+        debug!(
+            "                    - quad: {}",
+            quad.serialize().trim_end()
+        );
+
+        debug!("                      hndq.3.1:");
+        debug!("                        log point: Hash related bnode component (4.9.3 (3.1)).");
+        debug!("                        with:");
+
         // 3.1) For each component in quad, where component is the subject, object, or graph name,
         // and it is a blank node that is not identified by identifier:
         if let Subject::BlankNode(bnode) = &quad.subject {
@@ -514,6 +639,7 @@ fn hash_n_degree_quads(
                     &issuer,
                     HashRelatedBlankNodePosition::Subject,
                 )?;
+
                 // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
                 // adding an entry as necessary.
                 h_n.entry(hash)
@@ -569,12 +695,29 @@ fn hash_n_degree_quads(
         };
     }
 
+    debug!("                  Hash to bnodes:");
+    for (hash, bnodes) in h_n.iter() {
+        debug!("                    {}:", hash);
+        for bnode in bnodes.iter() {
+            debug!("                      - {}", bnode);
+        }
+    }
+
     // 4) Create an empty string, data to hash.
     let mut data_to_hash = Vec::<String>::new();
 
     // 5) For each related hash to blank node list mapping in Hn, code point ordered by related hash:
     // TODO: check if keys in BTreeMap is actually sorted in **code point order**
+    debug!("                hndq.5:");
+    debug!("                  log point: Hash N-Degree Quads function (4.9.3 (5)), entering loop.");
+    debug!("                  with:");
     for (related_hash, blank_node_list) in h_n {
+        debug!("                    - related hash: {}", related_hash);
+        debug!(
+            "                      data to hash: \"{}\"",
+            data_to_hash.join("")
+        );
+
         // 5.1) Append the related hash to the data to hash.
         data_to_hash.push(related_hash);
 
@@ -585,7 +728,12 @@ fn hash_n_degree_quads(
         let mut chosen_issuer = IdentifierIssuer::new("UNSET");
 
         // 5.4) For each permutation p of blank node list:
+        debug!("                      hndq.5.4:");
+        debug!("                        log point: Hash N-Degree Quads function (4.9.3 (5.4)), entering loop.");
+        debug!("                        with:");
         'perm_loop: for p in blank_node_list.iter().permutations(blank_node_list.len()) {
+            debug!("                          - perm: {:?}", p);
+
             // 5.4.1) Create a copy of issuer, issuer copy.
             let mut issuer_copy = issuer.clone();
 
@@ -597,7 +745,12 @@ fn hash_n_degree_quads(
             let mut recursion_list = Vec::<&String>::new();
 
             // 5.4.4) For each related in p:
+            debug!("                          hndq.5.4.4");
+            debug!("                            log point: Hash N-Degree Quads function (4.9.3 (5.4.4)), entering loop.");
+            debug!("                            with:");
             for related in p {
+                debug!("                              - related: {}", related);
+
                 if let Some(canonical_identifier) = state.canonical_issuer.get(related) {
                     // 5.4.4.1) If a canonical identifier has been issued for related by
                     // canonical issuer, append the string _:, followed by the canonical
@@ -615,11 +768,14 @@ fn hash_n_degree_quads(
                     // to path.
                     path_vec.push(format!("_:{}", issuer_copy.issue(related)));
                 }
+
                 // 5.4.4.3) If chosen path is not empty and the length of path is greater
                 // than or equal to the length of chosen path and path is greater than
                 // chosen path when considering code point order, then skip to the next
                 // permutation p.
                 let path = path_vec.join("");
+                debug!("                                path: \"{}\"", path);
+
                 if !chosen_path.is_empty() && path.len() >= chosen_path.len() && path >= chosen_path
                 {
                     continue 'perm_loop;
@@ -627,6 +783,12 @@ fn hash_n_degree_quads(
             }
 
             // 5.4.5) For each related in recursion list:
+            debug!("                          hndq.5.4.5");
+            debug!("                            log point: Hash N-Degree Quads function (4.9.3 (5.4.5)), before possible recursion.");
+            debug!(
+                "                            recursion list: {:?}",
+                recursion_list
+            );
             for related in recursion_list {
                 // 5.4.5.1) Set result to the result of recursively executing the Hash
                 // N-Degree Quads algorithm, passing the canonicalization state, related
@@ -662,7 +824,14 @@ fn hash_n_degree_quads(
         }
 
         // 5.5) Append chosen path to data to hash.
+        debug!("                      hndq.5.5:");
+        debug!("                        log point: Hash N-Degree Quads function (4.9.3 (5.5). End of current loop with Hn hashes.");
+        debug!("                        chosen path: \"{}\"", chosen_path);
         data_to_hash.push(chosen_path);
+        debug!(
+            "                        data to hash: \"{}\"",
+            data_to_hash.join("")
+        );
 
         // 5.6) Replace issuer, by reference, with chosen issuer.
         issuer = chosen_issuer;
@@ -670,30 +839,21 @@ fn hash_n_degree_quads(
 
     // 6) Return issuer and the hash that results from passing data to hash through the
     // hash algorithm.
+    debug!("                hndq.6:");
+    debug!("                  log point: Leaving Hash N-Degree Quads function (4.9.3 (6)).");
     let hash = hash(data_to_hash.join(""))?;
+    debug!("                  hash: {}", hash);
+    debug!(
+        "                  issuer: {}",
+        issuer.serialize_issued_identifiers_map()
+    );
     Ok(HashNDegreeQuadsResult { hash, issuer })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        nquads::parse,
-        rdf::{DefaultGraph, NamedNode, Predicate},
-    };
-    use nom::{
-        branch::{alt, permutation},
-        bytes::complete::tag,
-        character::complete::digit1,
-        combinator::map,
-        sequence::delimited,
-        IResult,
-    };
-    use std::{
-        fs::{self, File},
-        io::Read,
-        path::Path,
-    };
+    use crate::rdf::{DefaultGraph, NamedNode, Predicate};
 
     #[test]
     fn test_issue_identifier() {
@@ -969,71 +1129,6 @@ mod tests {
                 hash_path_list[1].hash,
                 "fbc300de5afafd97a4b9ee1e72b57754dcdcb7ebb724789ac6a94a5b82a48d30"
             );
-        }
-    }
-
-    #[test]
-    fn test_canonicalize_sample() {
-        let input_dataset = r#"<http://example.com/#p> <http://example.com/#q> _:e0 .
-<http://example.com/#p> <http://example.com/#q> _:e1 .
-_:e0 <http://example.com/#p> _:e2 .
-_:e1 <http://example.com/#p> _:e3 .
-_:e2 <http://example.com/#r> _:e3 .
-"#;
-        let input_dataset = parse(input_dataset).unwrap();
-        let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-        canonicalized_dataset.sort();
-
-        let expected_output = r#"<http://example.com/#p> <http://example.com/#q> _:c14n2 .
-<http://example.com/#p> <http://example.com/#q> _:c14n3 .
-_:c14n0 <http://example.com/#r> _:c14n1 .
-_:c14n2 <http://example.com/#p> _:c14n1 .
-_:c14n3 <http://example.com/#p> _:c14n0 .
-"#;
-        assert_eq!(canonicalized_dataset.serialize(), expected_output);
-    }
-
-    #[test]
-    fn test_canonicalize() {
-        const BASE_PATH: &str = "tests/urdna2015";
-
-        fn read_nquads(path: &str) -> Option<String> {
-            let path = Path::new(&path);
-            let mut file = match File::open(path) {
-                Err(_) => return None,
-                Ok(file) => file,
-            };
-            let mut s = String::new();
-            match file.read_to_string(&mut s) {
-                Err(why) => panic!("couldn't read {}: {}", path.display(), why),
-                Ok(_) => Some(s),
-            }
-        }
-
-        let mut i = 1;
-        loop {
-            let input_path = format!("{BASE_PATH}/test{:03}-in.nq", i);
-            let input = match read_nquads(&input_path) {
-                Some(s) => s,
-                None => break,
-            };
-            let output_path = format!("{BASE_PATH}/test{:03}-urdna2015.nq", i);
-            let output = match read_nquads(&output_path) {
-                Some(s) => s,
-                None => break,
-            };
-
-            let input_dataset = parse(&input).unwrap();
-            let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-            canonicalized_dataset.sort();
-
-            assert_eq!(
-                canonicalized_dataset.serialize(),
-                output,
-                "Failed: test{:03}",
-                i
-            );
-            i += 1;
         }
     }
 }

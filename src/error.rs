@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum CanonicalizationError {
     #[error("Base16 encoding failed.")]
     Base16EncodingFailed(base16ct::Error),
