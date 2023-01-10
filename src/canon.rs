@@ -2,6 +2,7 @@ use crate::error::CanonicalizationError;
 use crate::nquads::SerializeNQuads;
 use crate::rdf::{BlankNode, Graph, Object, Quad, Subject, Term};
 use base16ct::lower::encode_str;
+use indexmap::IndexMap;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -105,12 +106,12 @@ struct IdentifierIssuer {
     ///   identifiers, to prevent issuance of more than one new identifier
     ///   per existing identifier, and to allow blank nodes to be
     ///   reassigned identifiers some time after issuance.
-    issued_identifiers_map: BTreeMap<String, String>,
+    issued_identifiers_map: IndexMap<String, String>,
 }
 
 impl IdentifierIssuer {
     fn new(identifier_prefix: &str) -> IdentifierIssuer {
-        let issued_identifiers_map = BTreeMap::<String, String>::new();
+        let issued_identifiers_map = IndexMap::<String, String>::new();
         IdentifierIssuer {
             identifier_prefix: identifier_prefix.to_string(),
             identifier_counter: 0,

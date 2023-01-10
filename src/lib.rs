@@ -87,8 +87,8 @@ _:c14n3 <http://example.org/vocab#p2> "Foo" .
 
     #[test]
     fn test_canonicalize() {
-        init(tracing::Level::DEBUG);
-        //init(tracing::Level::INFO);
+        //init(tracing::Level::DEBUG);
+        init(tracing::Level::INFO);
 
         const BASE_PATH: &str = "tests/urdna2015";
 
