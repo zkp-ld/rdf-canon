@@ -3,9 +3,9 @@ use crate::rdf::{
     Variable, XSD_STRING,
 };
 use nom::branch::{alt, permutation};
-use nom::bytes::complete::tag;
+use nom::bytes::complete::{escaped_transform, tag};
 use nom::character::complete::{alpha1, alphanumeric1, char, line_ending, none_of, space0, space1};
-use nom::combinator::{map, opt};
+use nom::combinator::{map, opt, value};
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded, tuple};
 use nom::IResult;
@@ -25,7 +25,7 @@ impl SerializeNQuads for BlankNode {
 }
 impl SerializeNQuads for Literal {
     fn serialize(&self) -> String {
-        // TODO: escape characters if necessary
+        // TODO: escape characters
         let value = &self.value();
         match (&self.language, &self.datatype) {
             // If present, the language tag is preceded by a '@' (U+0040).
@@ -133,9 +133,24 @@ fn iriref(input: &str) -> IResult<&str, NamedNode> {
 
 fn string_literal_quote(input: &str) -> IResult<&str, String> {
     // TODO: include ECHAR and UCHAR
-    let (input, value) = delimited(char('\"'), many0(none_of("\"\\\n\r")), char('\"'))(input)?;
-    let value: String = value.iter().collect::<String>();
-    Ok((input, value))
+    delimited(
+        char('\"'),
+        escaped_transform(
+            none_of("\"\\\n\r"),
+            '\\',
+            alt((
+                value('\t', char('t')),
+                // value('\b', char('b')),
+                value('\n', char('n')),
+                value('\r', char('r')),
+                // value('\f', char('f')),
+                value('\"', char('\"')),
+                value('\'', char('\'')),
+                value('\\', char('\\')),
+            )),
+        ),
+        char('\"'),
+    )(input)
 }
 
 fn blank_node_label(input: &str) -> IResult<&str, BlankNode> {
@@ -147,6 +162,7 @@ fn blank_node_label(input: &str) -> IResult<&str, BlankNode> {
 
 fn literal(input: &str) -> IResult<&str, Literal> {
     alt((
+        map(tag("\"\""), |_| -> Literal { Literal::new("", None, None) }),
         map(
             permutation((string_literal_quote, preceded(tag("^^"), iriref))),
             |(value, d)| -> Literal { Literal::new(&value, Some(&d), None) },
