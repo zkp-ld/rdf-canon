@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use tracing::debug;
+use tracing::{debug, debug_span};
 
 /// **4.3 Canonicalization State**
 struct CanonicalizationState {
@@ -249,39 +249,69 @@ impl BlankNode {
 /// **4.5 Canonicalization Algorithm**
 ///   The canonicalization algorithm converts an input dataset into a normalized dataset.
 ///   This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
-#[tracing::instrument(name = "", skip_all)]
 pub fn canonicalize(input_dataset: &[Quad]) -> Result<Vec<Quad>, CanonicalizationError> {
-    debug!("ca:");
-    debug!("  log point: Entering the canonicalization function (4.5.3).");
+    // * log * //
+    let _span_ca = debug_span!(
+        "ca",
+        message = "log point: Entering the canonicalization function (4.5.3)."
+    )
+    .entered();
+    // * log * //
 
     // 1) Create the canonicalization state.
     let mut state = CanonicalizationState::new();
 
     // 2) For every quad Q in input dataset:
-    debug!("  ca.2:");
-    debug!("    log point: Extract quads for each bnode (4.5.3 (2)).");
+    // * log * //
+    let span_ca_2 = debug_span!(
+        "ca.2",
+        message = "log point: Extract quads for each bnode (4.5.3 (2))."
+    )
+    .entered();
+    // * log * //
 
     // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
     // entry for the blank node identifier identifier in the blank node to quads map,
     // creating a new entry if necessary.
     state.update_blank_node_to_quads_map(input_dataset);
 
-    debug!("    Bnode to quads:");
+    // * log * //
+    debug!("Bnode to quads:");
     for (bnode_id, quads) in state.serialize_blank_node_to_quads_map().iter() {
-        debug!("      {}:", bnode_id);
+        debug!(indent = 1, "{}:", bnode_id);
         for quad in quads.iter() {
-            debug!("        - {}", quad.trim_end());
+            debug!(indent = 2, "- {}", quad.trim_end());
         }
     }
+    span_ca_2.exit();
+    // * log * //
 
     // 3) For each key n in the blank node to quads map:
-    debug!("  ca.3:");
-    debug!("    log point: Calculated first degree hashes (4.5.3 (3)).");
-    debug!("    with:");
+    // * log * //
+    let span_ca_3 = debug_span!(
+        "ca.3",
+        message = "log point: Calculated first degree hashes (4.5.3 (3))."
+    )
+    .entered();
+    debug!("with:");
+    // * log * //
+
     for (n, _quads) in state.blank_node_to_quads_map.iter() {
-        debug!("      - identifier: {}", n);
+        // * log * //
+        debug!(indent = 1, "- identifier: {}", n);
+        // * log * //
+
         // 3.1) Create a hash, h_f(n), for n according to the Hash First Degree Quads algorithm.
+        // * log * //
+        let span_ca_3_1 = debug_span!("", indent = 1).entered();
+        // * log * //
+
         let hash = hash_first_degree_quads(&state, n).unwrap();
+
+        // * log * //
+        span_ca_3_1.exit();
+        // * log * //
+
         // 3.2) Add h_f(n) and n to hash to blank nodes map, including repetitions, creating a new entry if necessary.
         state
             .hash_to_blank_node_map
@@ -289,12 +319,21 @@ pub fn canonicalize(input_dataset: &[Quad]) -> Result<Vec<Quad>, Canonicalizatio
             .or_insert_with(Vec::<String>::new)
             .push(n.clone());
     }
+    // * log * //
+    span_ca_3.exit();
+    // * log * //
 
     // 4) For each hash to identifier list map entry in hash to blank nodes map, code point ordered by hash:
     // TODO: check if `sort()` here is actually sorting in **Unicode code point order**
-    debug!("  ca.4:");
-    debug!("    log point: Create canonical replacements for hashes mapping to a single node (4.5.3 (4)).");
-    debug!("    with:");
+    // * log * //
+    let span_ca_4 = debug_span!(
+        "ca.4",
+        message = "log point: Create canonical replacements for hashes mapping to a single node (4.5.3 (4))."
+    )
+    .entered();
+    debug!("with:");
+    // * log * //
+
     let mut new_hash_to_blank_node_map = state.hash_to_blank_node_map.clone();
     for (hash, identifier_list) in state.hash_to_blank_node_map.iter() {
         // 4.1) If identifier list has more than one entry, continue to the next mapping.
@@ -302,89 +341,183 @@ pub fn canonicalize(input_dataset: &[Quad]) -> Result<Vec<Quad>, Canonicalizatio
             continue;
         }
         let identifier = &identifier_list[0];
-        debug!("      - identifier: {}", identifier);
-        debug!("        hash: {}", hash);
+
+        // * log * //
+        debug!(indent = 1, "- identifier: {}", identifier);
+        debug!("hash: {}", hash);
+        // * log * //
+
         // 4.2) Use the Issue Identifier algorithm, passing canonical issuer and the single blank node identifier,
         // identifier in identifier list to issue a canonical replacement identifier for identifier.
         let _canonical_identifier = state.canonical_issuer.issue(identifier);
-        debug!("        canonical label: {}", _canonical_identifier);
+
+        // * log * //
+        debug!("canonical label: {}", _canonical_identifier);
+        // * log * //
+
         // 4.3) Remove the map entry for hash from the hash to blank nodes map.
         new_hash_to_blank_node_map.remove(hash);
     }
     state.hash_to_blank_node_map = new_hash_to_blank_node_map;
 
+    // * log * //
+    span_ca_4.exit();
+    // * log * //
+
     // 5) For each hash to identifier list map entry in hash to blank nodes map, code point ordered by hash:
-    debug!("  ca.5:");
-    debug!("    log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5)).");
-    debug!("    with:");
+    // * log * //
+    let span_ca_5 = debug_span!(
+        "ca.5",
+        message = "log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5))."
+    )
+    .entered();
+    debug!("with:");
+    // * log * //
+
     for (_hash, identifier_list) in state.hash_to_blank_node_map.iter() {
-        debug!("      - hash: {}", _hash);
-        debug!("        identifier list: {:?}", identifier_list);
+        // * log * //
+        debug!(indent = 1, "- hash: {}", _hash);
+        debug!(indent = 2, "identifier list: {:?}", identifier_list);
+        // * log * //
+
         // 5.1) Create hash path list where each item will be a result of running the Hash N-Degree Quads algorithm.
         let mut hash_path_list = Vec::<HashNDegreeQuadsResult>::new();
 
         // 5.2) For each blank node identifier n in identifier list:
-        debug!("        ca.5.2:");
-        debug!("          log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5.2)).");
-        debug!("          with:");
+        // * log * //
+        let span_ca_5_2 = debug_span!(
+            "ca.5.2",
+            message =
+                "log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5.2)).",
+            indent = 2
+        )
+        .entered();
+        debug!("with:");
+        // * log * //
+
         for n in identifier_list {
-            debug!("            - identifier: {}", n);
+            // * log * //
+            debug!(indent = 1, "- identifier: {}", n);
+            // * log * //
 
             // 5.2.1) If a canonical identifier has already been issued for n, continue to the next blank node
             // identifier.
             if state.canonical_issuer.get(n).is_some() {
                 continue;
             }
+
             // 5.2.2) Create temporary issuer, an identifier issuer initialized with the prefix b.
             let mut temporary_issuer = IdentifierIssuer::new("b");
+
             // 5.2.3) Use the Issue Identifier algorithm, passing temporary issuer and n, to issue a new temporary
             // blank node identifier b_n to n.
             temporary_issuer.issue(n);
+
             // 5.2.4) Run the Hash N-Degree Quads algorithm, passing the canonicalization state, n for identifier,
             // and temporary issuer, appending the result to the hash path list.
+            // * log * //
+            let span_ca_5_2_4 = debug_span!("", indent = 1).entered();
+            // * log * //
+
             let result = hash_n_degree_quads(&state, n.clone(), &temporary_issuer).unwrap();
+
+            // * log * //
+            span_ca_5_2_4.exit();
+            // * log * //
+
             hash_path_list.push(result);
         }
+
+        // * log * //
+        span_ca_5_2.exit();
+        // * log * //
+
         // 5.3) For each result in the hash path list, code point ordered by the hash in result:
-        debug!("        ca.5.3:");
+
+        // * log * //
+        let span_ca_5_3 = debug_span!(
+            "ca.5.3",
+            message = "log point: Canonical identifiers for temporary identifiers (4.5.3 (5.3)).",
+            indent = 2
+        )
+        .entered();
+        if !hash_path_list.is_empty() {
+            debug!("with:");
+        }
+        // * log * //
+
         hash_path_list.sort();
         for result in hash_path_list.iter() {
-            debug!("          - result: {}", result.hash);
+            // * log * //
+            debug!(indent = 1, "- result: {}", result.hash);
             debug!(
-                "            issuer: {}",
+                indent = 2,
+                "issuer: {}",
                 result.issuer.serialize_issued_identifiers_map()
             );
+            // * log * //
+
             // 5.3.1) For each blank node identifier, existing identifier, that was issued a temporary identifier
             // by identifier issuer in result, issue a canonical identifier, in the same order, using the Issue
             // Identifier algorithm, passing canonical issuer and existing identifier.
-            debug!("            ca.5.3.1:");
+
+            // * log * //
+            let span_ca_5_3_1 = debug_span!("ca.5.3.1", indent = 2).entered();
+            // * log * //
+
             for (existing_identifier, _temporary_identifier) in
                 result.issuer.issued_identifiers_map.iter()
             {
-                debug!(
-                    "              - existing identifier: {}",
-                    existing_identifier
-                );
+                // * log * //
+                debug!("- existing identifier: {}", existing_identifier);
+                // * log * //
+
                 let _canonical_identifier = state.canonical_issuer.issue(existing_identifier);
-                debug!("                cid: {}", _canonical_identifier);
+
+                // * log * //
+                debug!(indent = 1, "cid: {}", _canonical_identifier);
+                // * log * //
             }
+
+            // * log * //
+            span_ca_5_3_1.exit();
+            // * log * //
         }
+
+        // * log * //
+        span_ca_5_3.exit();
+        // * log * //
     }
 
+    // * log * //
+    span_ca_5.exit();
+    // * log * //
+
     // 6) For each quad, q, in input dataset:
+
+    // * log * //
+    let span_ca_6 = debug_span!(
+        "ca.6",
+        message = "log point: Replace original with canonical labels (4.5.3 (6))."
+    )
+    .entered();
+    debug!(
+        "canonical issuer: {}",
+        state.canonical_issuer.serialize_issued_identifiers_map()
+    );
+    // * log * //
+
     // 6.1) Create a copy, quad copy, of q and replace any existing blank node identifier n using the
     // canonical identifiers previously issued by canonical issuer.
     // 6.2) Add quad copy to the normalized dataset.
-    debug!("  ca.6:");
-    debug!("    log point: Replace original with canonical labels (4.5.3 (6)).");
-    debug!(
-        "    canonical issuer: {}",
-        state.canonical_issuer.serialize_issued_identifiers_map()
-    );
     let normalized_dataset: Result<Vec<Quad>, CanonicalizationError> = input_dataset
         .iter()
         .map(|q| q.canonicalize(&state.canonical_issuer))
         .collect();
+
+    // * log * //
+    span_ca_6.exit();
+    // * log * //
 
     // 7) Return the normalized dataset.
     normalized_dataset
@@ -404,8 +537,11 @@ fn hash_first_degree_quads(
     canonicalization_state: &CanonicalizationState,
     reference_blank_node_identifier: &String,
 ) -> Result<String, CanonicalizationError> {
-    debug!("        h1dq:");
-    debug!("          log point: Hash First Degree Quads function (4.7.3).");
+    let _span_h1dq = debug_span!(
+        "h1dq",
+        message = "log point: Hash First Degree Quads function (4.7.3)."
+    )
+    .entered();
 
     // 1) Initialize nquads to an empty list. It will be used to store
     // quads in canonical n-quads form.
@@ -465,10 +601,12 @@ fn hash_first_degree_quads(
         }
     }
 
-    debug!("          nquads:");
+    // * log * //
+    debug!("nquads:");
     for nquad in nquads.iter() {
-        debug!("            - {}", nquad.trim_end());
+        debug!(indent = 1, "- {}", nquad.trim_end());
     }
+    // * log * //
 
     // 4) Sort nquads in Unicode code point order.
     // TODO: check if `sort()` here is actually sorting in **Unicode code point order**
@@ -477,10 +615,7 @@ fn hash_first_degree_quads(
     // 5) Return the hash that results from passing the sorted and concatenated
     // nquads through the hash algorithm.
     let hashed_nquads = hash(nquads.join(""));
-    debug!(
-        "          hash: {}",
-        hashed_nquads.clone().unwrap_or_default()
-    );
+    debug!("hash: {}", hashed_nquads.clone().unwrap_or_default());
     hashed_nquads
 }
 
@@ -511,11 +646,10 @@ fn hash_related_blank_node(
     issuer: &IdentifierIssuer,
     position: HashRelatedBlankNodePosition,
 ) -> Result<String, CanonicalizationError> {
-    debug!(
-        "                          - position: {}",
-        position.serialize()
-    );
-    debug!("                            related: {}", related);
+    // * log * //
+    debug!("- position: {}", position.serialize());
+    debug!(indent = 1, "related: {}", related);
+    // * log * //
 
     // 1) Initialize a string input to the value of position.
     let input = match position {
@@ -527,6 +661,11 @@ fn hash_related_blank_node(
     // 3) If there is a canonical identifier for related, or an identifier issued by issuer,
     // append the string _:, followed by that identifier (using the canonical identifier if
     // present, otherwise the one issued by issuer) to input.
+
+    // * log * //
+    let span_hrbn_3 = debug_span!("").entered();
+    // * log * //
+
     let identifier = match state.canonical_issuer.get(related) {
         Some(id) => format!("_:{}", id),
         None => match issuer.get(related) {
@@ -536,15 +675,23 @@ fn hash_related_blank_node(
             None => hash_first_degree_quads(state, related)?,
         },
     };
+
+    // * log * //
+    span_hrbn_3.exit();
+    // * log * //
+
     let input = format!("{}{}", input, identifier);
-    debug!("                            input: \"{}\"", input);
+
+    // * log * //
+    debug!(indent = 1, "input: \"{}\"", input);
+    // * log * //
 
     // 5) Return the hash that results from passing input through the hash algorithm.
     let output = hash(input);
-    debug!(
-        "                            hash: {}",
-        output.clone().unwrap_or_default()
-    );
+
+    // * log * //
+    debug!(indent = 1, "hash: {}", output.clone().unwrap_or_default());
+    // * log * //
 
     output
 }
@@ -584,11 +731,17 @@ fn hash_n_degree_quads(
     identifier: String,
     path_identifier_issuer: &IdentifierIssuer,
 ) -> Result<HashNDegreeQuadsResult, CanonicalizationError> {
-    debug!("              hndq:");
-    debug!("                log point: Hash N-Degree Quads function (4.9.3).");
-    debug!("                identifier: {}", identifier);
+    // * log * //
+    let _span_hndq = debug_span!(
+        "hndq",
+        message = "log point: Hash N-Degree Quads function (4.9.3)."
+    )
+    .entered();
+    // * log * //
+
+    debug!("identifier: {}", identifier);
     debug!(
-        "                issuer: {}",
+        "issuer: {}",
         path_identifier_issuer.serialize_issued_identifiers_map()
     );
 
@@ -599,30 +752,48 @@ fn hash_n_degree_quads(
 
     // 2) Get a reference, quads, to the list of quads from the map entry for identifier
     // in the blank node to quads map.
-    debug!("                hndq.2:");
-    debug!("                  log point: Quads for identifier (4.9.3 (2)).");
+    // * log * //
+    let span_hndq_2 = debug_span!(
+        "hndq.2",
+        message = "log point: Quads for identifier (4.9.3 (2))."
+    )
+    .entered();
+    // * log * //
+
     let quads = match state.get_quads_for_blank_node(&identifier) {
         Some(q) => q,
         None => return Err(CanonicalizationError::QuadsNotExist),
     };
-    debug!("                  quads:");
+    debug!("quads:");
     for quad in quads {
-        debug!("                    - {}", quad.serialize().trim_end());
+        debug!(indent = 1, "- {}", quad.serialize().trim_end());
     }
 
-    // 3) For each quad in quads:
-    debug!("                hndq.3:");
-    debug!("                  log point: Hash N-Degree Quads function (4.9.3 (3)).");
-    debug!("                  with:");
-    for quad in quads {
-        debug!(
-            "                    - quad: {}",
-            quad.serialize().trim_end()
-        );
+    // * log * //
+    span_hndq_2.exit();
+    // * log * //
 
-        debug!("                      hndq.3.1:");
-        debug!("                        log point: Hash related bnode component (4.9.3 (3.1)).");
-        debug!("                        with:");
+    // 3) For each quad in quads:
+    // * log * //
+    let span_hndq_3 = debug_span!(
+        "hndq.3",
+        message = "log point: Hash N-Degree Quads function (4.9.3 (3))."
+    )
+    .entered();
+    debug!("with:");
+    // * log * //
+
+    for quad in quads {
+        // * log * //
+        debug!(indent = 1, "- quad: {}", quad.serialize().trim_end());
+        let span_hndq_3_1 = debug_span!(
+            "hndq.3.1",
+            message = "log point: Hash related bnode component (4.9.3 (3.1)).",
+            indent = 2
+        )
+        .entered();
+        let mut span_hndq_3_1_flag = false;
+        // * log * //
 
         // 3.1) For each component in quad, where component is the subject, object, or graph name,
         // and it is a blank node that is not identified by identifier:
@@ -633,6 +804,14 @@ fn hash_n_degree_quads(
                 // the blank node identifier for component as related, quad, issuer, and position
                 // as either s, o, or g based on whether component is a subject, object, graph name,
                 // respectively.
+
+                // * log * //
+                if !span_hndq_3_1_flag {
+                    debug!("with:");
+                    span_hndq_3_1_flag = true;
+                }
+                // * log * //
+
                 let hash = hash_related_blank_node(
                     state,
                     &bnode_id,
@@ -657,6 +836,14 @@ fn hash_n_degree_quads(
                 // the blank node identifier for component as related, quad, issuer, and position
                 // as either s, o, or g based on whether component is a subject, object, graph name,
                 // respectively.
+
+                // * log * //
+                if !span_hndq_3_1_flag {
+                    debug!("with:");
+                    span_hndq_3_1_flag = true;
+                }
+                // * log * //
+
                 let hash = hash_related_blank_node(
                     state,
                     &bnode_id,
@@ -664,6 +851,7 @@ fn hash_n_degree_quads(
                     &issuer,
                     HashRelatedBlankNodePosition::Object,
                 )?;
+
                 // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
                 // adding an entry as necessary.
                 h_n.entry(hash)
@@ -680,6 +868,13 @@ fn hash_n_degree_quads(
                 // the blank node identifier for component as related, quad, issuer, and position
                 // as either s, o, or g based on whether component is a subject, object, graph name,
                 // respectively.
+
+                // * log * //
+                if !span_hndq_3_1_flag {
+                    debug!("with:");
+                }
+                // * log * //
+
                 let hash = hash_related_blank_node(
                     state,
                     &bnode_id,
@@ -687,6 +882,7 @@ fn hash_n_degree_quads(
                     &issuer,
                     HashRelatedBlankNodePosition::Graph,
                 )?;
+
                 // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
                 // adding an entry as necessary.
                 h_n.entry(hash)
@@ -694,30 +890,43 @@ fn hash_n_degree_quads(
                     .push(bnode_id);
             };
         };
+
+        // * log * //
+        span_hndq_3_1.exit();
+        // * log * //
     }
 
-    debug!("                  Hash to bnodes:");
+    // * log * //
+    debug!("Hash to bnodes:");
     for (hash, bnodes) in h_n.iter() {
-        debug!("                    {}:", hash);
+        debug!(indent = 1, "{}:", hash);
         for bnode in bnodes.iter() {
-            debug!("                      - {}", bnode);
+            debug!(indent = 2, "- {}", bnode);
         }
     }
+    span_hndq_3.exit();
+    // * log * //
 
     // 4) Create an empty string, data to hash.
     let mut data_to_hash = Vec::<String>::new();
 
     // 5) For each related hash to blank node list mapping in Hn, code point ordered by related hash:
     // TODO: check if keys in BTreeMap is actually sorted in **code point order**
-    debug!("                hndq.5:");
-    debug!("                  log point: Hash N-Degree Quads function (4.9.3 (5)), entering loop.");
-    debug!("                  with:");
+
+    // * log * //
+    let span_hndq_5 = debug_span!(
+        "hndq.5",
+        message = "log point: Hash N-Degree Quads function (4.9.3 (5)), entering loop."
+    )
+    .entered();
+    debug!("with:");
+    // * log * //
+
     for (related_hash, blank_node_list) in h_n {
-        debug!("                    - related hash: {}", related_hash);
-        debug!(
-            "                      data to hash: \"{}\"",
-            data_to_hash.join("")
-        );
+        // * log * //
+        debug!(indent = 1, "- related hash: {}", related_hash);
+        debug!(indent = 2, "data to hash: \"{}\"", data_to_hash.join(""));
+        // * log * //
 
         // 5.1) Append the related hash to the data to hash.
         data_to_hash.push(related_hash);
@@ -729,11 +938,21 @@ fn hash_n_degree_quads(
         let mut chosen_issuer = IdentifierIssuer::new("UNSET");
 
         // 5.4) For each permutation p of blank node list:
-        debug!("                      hndq.5.4:");
-        debug!("                        log point: Hash N-Degree Quads function (4.9.3 (5.4)), entering loop.");
-        debug!("                        with:");
+
+        // * log * //
+        let span_hndq_5_4 = debug_span!(
+            "hndq.5.4",
+            message = "log point: Hash N-Degree Quads function (4.9.3 (5.4)), entering loop.",
+            indent = 2
+        )
+        .entered();
+        // * log * //
+
         'perm_loop: for p in blank_node_list.iter().permutations(blank_node_list.len()) {
-            debug!("                          - perm: {:?}", p);
+            // * log * //
+            debug!("with:");
+            debug!(indent = 1, "- perm: {:?}", p);
+            // * log * //
 
             // 5.4.1) Create a copy of issuer, issuer copy.
             let mut issuer_copy = issuer.clone();
@@ -746,11 +965,21 @@ fn hash_n_degree_quads(
             let mut recursion_list = Vec::<&String>::new();
 
             // 5.4.4) For each related in p:
-            debug!("                          hndq.5.4.4");
-            debug!("                            log point: Hash N-Degree Quads function (4.9.3 (5.4.4)), entering loop.");
-            debug!("                            with:");
+
+            // * log * //
+            let span_hndq_5_4_4 = debug_span!(
+                "hndq.5.4.4",
+                message = "log point: Hash N-Degree Quads function (4.9.3 (5.4.4)), entering loop.",
+                indent = 2
+            )
+            .entered();
+            debug!("with:");
+            // * log * //
+
             for related in p {
-                debug!("                              - related: {}", related);
+                // * log * //
+                debug!(indent = 1, "- related: {}", related);
+                // * log * //
 
                 if let Some(canonical_identifier) = state.canonical_issuer.get(related) {
                     // 5.4.4.1) If a canonical identifier has been issued for related by
@@ -775,7 +1004,10 @@ fn hash_n_degree_quads(
                 // chosen path when considering code point order, then skip to the next
                 // permutation p.
                 let path = path_vec.join("");
-                debug!("                                path: \"{}\"", path);
+
+                // * log * //
+                debug!(indent = 2, "path: \"{}\"", path);
+                // * log * //
 
                 if !chosen_path.is_empty() && path.len() >= chosen_path.len() && path >= chosen_path
                 {
@@ -783,36 +1015,88 @@ fn hash_n_degree_quads(
                 }
             }
 
+            // * log * //
+            span_hndq_5_4_4.exit();
+            // * log * //
+
             // 5.4.5) For each related in recursion list:
-            debug!("                          hndq.5.4.5");
-            debug!("                            log point: Hash N-Degree Quads function (4.9.3 (5.4.5)), before possible recursion.");
-            debug!(
-                "                            recursion list: {:?}",
-                recursion_list
-            );
+
+            // * log * //
+            let span_hndq_5_4_5 = debug_span!(
+                "hndq.5.4.5",
+                message = "log point: Hash N-Degree Quads function (4.9.3 (5.4.5)), before possible recursion.",
+                indent = 2
+            )
+            .entered();
+            debug!("recursion list: {:?}", recursion_list);
+            debug!("path: {:?}", chosen_path);
+            if !recursion_list.is_empty() {
+                debug!("with:");
+            }
+            // * log * //
+
             for related in recursion_list {
+                // * log * //
+                debug!(indent = 1, "- related: {}", related);
+                // * log * //
+
                 // 5.4.5.1) Set result to the result of recursively executing the Hash
                 // N-Degree Quads algorithm, passing the canonicalization state, related
                 // for identifier, and issuer copy for path identifier issuer.
+
+                // * log * //
+                let span_hndq_5_4_5_1 = debug_span!("", indent = 1).entered();
+                // * log * //
+
                 let result = hash_n_degree_quads(state, related.clone(), &issuer_copy)?;
+
+                // * log * //
+                span_hndq_5_4_5_1.exit();
+                // * log * //
+
                 // 5.4.5.2) Use the Issue Identifier algorithm, passing issuer copy and
                 // related; append the string _:, followed by the result, to path.
                 path_vec.push(format!("_:{}", issuer_copy.issue(related)));
+
                 // 5.4.5.3) Append <, the hash in result, and > to path.
                 path_vec.push("<".to_string());
                 path_vec.push(result.hash);
                 path_vec.push(">".to_string());
+
                 // 5.4.5.4) Set issuer copy to the identifier issuer in result.
+
+                // * log * //
+                let span_hndq_5_4_5_4 = debug_span!(
+                    "hndq.5.4.5.4",
+                    message = "log point: Hash N-Degree Quads function (4.9.3 (5.4.5.4)), combine result of recursion.",
+                    indent = 1
+                ).entered();
+                // * log * //
+
                 issuer_copy = result.issuer;
+                let path = path_vec.join("");
+
+                // * log * //
+                debug!("path: \"{}\"", path);
+                debug!(
+                    "issuer copy: {}",
+                    issuer_copy.serialize_issued_identifiers_map()
+                );
+                span_hndq_5_4_5_4.exit();
+                // * log * //
+
                 // 5.4.5.5) If chosen path is not empty and the length of path is greater
                 // than or equal to the length of chosen path and path is greater than
                 // chosen path when considering code point order, then skip to the next p.
-                let path = path_vec.join("");
                 if !chosen_path.is_empty() && path.len() >= chosen_path.len() && path >= chosen_path
                 {
                     continue 'perm_loop;
                 }
             }
+
+            // * log * //
+            span_hndq_5_4_5.exit();
+            // * log * //
 
             // 5.4.6) If chosen path is empty or path is less than chosen path when
             // considering code point order, set chosen path to path and chosen issuer to
@@ -824,30 +1108,56 @@ fn hash_n_degree_quads(
             }
         }
 
+        // * log * //
+        span_hndq_5_4.exit();
+        // * log * //
+
         // 5.5) Append chosen path to data to hash.
-        debug!("                      hndq.5.5:");
-        debug!("                        log point: Hash N-Degree Quads function (4.9.3 (5.5). End of current loop with Hn hashes.");
-        debug!("                        chosen path: \"{}\"", chosen_path);
+
+        // * log * //
+        let span_hndq_5_5 = debug_span!(
+            "hndq.5.5",
+            message = "log point: Hash N-Degree Quads function (4.9.3 (5.5). End of current loop with Hn hashes.",
+            indent = 2
+        )
+        .entered();
+        debug!("chosen path: \"{}\"", chosen_path);
+        // * log * //
+
         data_to_hash.push(chosen_path);
-        debug!(
-            "                        data to hash: \"{}\"",
-            data_to_hash.join("")
-        );
+
+        // * log * //
+        debug!("data to hash: \"{}\"", data_to_hash.join(""));
+        span_hndq_5_5.exit();
+        // * log * //
 
         // 5.6) Replace issuer, by reference, with chosen issuer.
         issuer = chosen_issuer;
     }
 
+    // * log * //
+    span_hndq_5.exit();
+    // * log * //
+
     // 6) Return issuer and the hash that results from passing data to hash through the
     // hash algorithm.
-    debug!("                hndq.6:");
-    debug!("                  log point: Leaving Hash N-Degree Quads function (4.9.3 (6)).");
+
+    // * log * //
+    let span_hndq_6 = debug_span!(
+        "hndq.6",
+        message = "log point: Leaving Hash N-Degree Quads function (4.9.3 (6))."
+    )
+    .entered();
+    // * log * //
+
     let hash = hash(data_to_hash.join(""))?;
-    debug!("                  hash: {}", hash);
-    debug!(
-        "                  issuer: {}",
-        issuer.serialize_issued_identifiers_map()
-    );
+
+    // * log * //
+    debug!("hash: {}", hash);
+    debug!("issuer: {}", issuer.serialize_issued_identifiers_map());
+    span_hndq_6.exit();
+    // * log * //
+
     Ok(HashNDegreeQuadsResult { hash, issuer })
 }
 
