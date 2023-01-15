@@ -1090,7 +1090,7 @@ mod tests {
 
         state.update_blank_node_to_quads_map(&input_dataset);
 
-        for (n, quads) in state.blank_node_to_quads_map.iter() {
+        for (n, _quads) in state.blank_node_to_quads_map.iter() {
             let hash = hash_first_degree_quads(&state, n).unwrap();
             state
                 .hash_to_blank_node_map
@@ -1110,7 +1110,7 @@ mod tests {
         }
         state.hash_to_blank_node_map = new_hash_to_blank_node_map;
 
-        for (hash, identifier_list) in state.hash_to_blank_node_map.iter() {
+        for (_hash, identifier_list) in state.hash_to_blank_node_map.iter() {
             let mut hash_path_list = Vec::<HashNDegreeQuadsResult>::new();
             for n in identifier_list {
                 if state.canonical_issuer.get(n).is_some() {
