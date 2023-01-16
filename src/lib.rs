@@ -77,8 +77,6 @@ _:c14n3 <http://example.com/#p> _:c14n0 .
 
     #[test]
     fn test_canonicalize_duplicated_paths_example() {
-        init(tracing::Level::DEBUG);
-
         let input_dataset = r#"_:e0 <http://example.com/#p1> _:e1 .
 _:e1 <http://example.com/#p2> "Foo" .
 _:e2 <http://example.com/#p1> _:e3 .
@@ -116,12 +114,7 @@ _:c14n3 <http://example.com/#p2> "Foo" .
         }
 
         let range = 1..=63;
-        //let range = 22..=22;
         for i in range {
-            if i == 60 {
-                continue;
-            }
-
             let input_path = format!("{BASE_PATH}/test{:03}-in.nq", i);
             let input = match read_nquads(&input_path) {
                 Some(s) => s,
