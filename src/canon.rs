@@ -1069,7 +1069,7 @@ fn hash_n_degree_quads(
                 let span_hndq_5_4_5_4 = debug_span!(
                     "hndq.5.4.5.4",
                     message = "log point: Hash N-Degree Quads function (4.9.3 (5.4.5.4)), combine result of recursion.",
-                    indent = 1
+                    indent = 2
                 ).entered();
                 // * log * //
 
