@@ -1,16 +1,16 @@
 [package]
 name = "rdf-canon"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-base16ct = "0.1"
+base16ct = "0.2"
 indexmap = "1.9"
 itertools = "0.10"
-nanoid = "0.4"
-nom = "7.1"
+oxigraph = "0.3"
+oxrdf = "0.1"
 sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
