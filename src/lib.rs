@@ -1,15 +1,17 @@
 mod canon;
 mod error;
-mod nquads;
-mod rdf;
+pub use crate::canon::canonicalize;
+pub use crate::error::CanonicalizationError;
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        canon::canonicalize,
-        nquads::{parse, SerializeNQuads},
+    use crate::canon::canonicalize;
+    use oxigraph::io::{DatasetFormat, DatasetParser};
+    use std::{
+        fs::File,
+        io::{BufReader, Read},
+        path::Path,
     };
-    use std::{fs::File, io::Read, path::Path};
     use tracing::metadata::LevelFilter;
     use tracing_subscriber::{fmt, prelude::*};
 
@@ -36,67 +38,9 @@ mod tests {
     }
 
     #[test]
-    fn test_canonicalize_unique_hash_example() {
-        let input_dataset = r#"<http://example.com/#p> <http://example.com/#q> _:e0 .
-<http://example.com/#p> <http://example.com/#r> _:e1 .
-_:e0 <http://example.com/#s> <http://example.com/#u> .
-_:e1 <http://example.com/#t> <http://example.com/#u> .
-"#;
-        let input_dataset = parse(input_dataset).unwrap();
-        let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-        canonicalized_dataset.sort();
-
-        let expected_output = r#"<http://example.com/#p> <http://example.com/#q> _:c14n0 .
-<http://example.com/#p> <http://example.com/#r> _:c14n1 .
-_:c14n0 <http://example.com/#s> <http://example.com/#u> .
-_:c14n1 <http://example.com/#t> <http://example.com/#u> .
-"#;
-        assert_eq!(canonicalized_dataset.serialize(), expected_output);
-    }
-
-    #[test]
-    fn test_canonicalize_shared_hash_example() {
-        let input_dataset = r#"<http://example.com/#p> <http://example.com/#q> _:e0 .
-<http://example.com/#p> <http://example.com/#q> _:e1 .
-_:e0 <http://example.com/#p> _:e2 .
-_:e1 <http://example.com/#p> _:e3 .
-_:e2 <http://example.com/#r> _:e3 .
-"#;
-        let input_dataset = parse(input_dataset).unwrap();
-        let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-        canonicalized_dataset.sort();
-
-        let expected_output = r#"<http://example.com/#p> <http://example.com/#q> _:c14n2 .
-<http://example.com/#p> <http://example.com/#q> _:c14n3 .
-_:c14n0 <http://example.com/#r> _:c14n1 .
-_:c14n2 <http://example.com/#p> _:c14n1 .
-_:c14n3 <http://example.com/#p> _:c14n0 .
-"#;
-        assert_eq!(canonicalized_dataset.serialize(), expected_output);
-    }
-
-    #[test]
-    fn test_canonicalize_duplicated_paths_example() {
-        let input_dataset = r#"_:e0 <http://example.com/#p1> _:e1 .
-_:e1 <http://example.com/#p2> "Foo" .
-_:e2 <http://example.com/#p1> _:e3 .
-_:e3 <http://example.com/#p2> "Foo" .
-"#;
-        let input_dataset = parse(input_dataset).unwrap();
-        let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-        canonicalized_dataset.sort();
-
-        let expected_output = r#"_:c14n0 <http://example.com/#p1> _:c14n1 .
-_:c14n1 <http://example.com/#p2> "Foo" .
-_:c14n2 <http://example.com/#p1> _:c14n3 .
-_:c14n3 <http://example.com/#p2> "Foo" .
-"#;
-        assert_eq!(canonicalized_dataset.serialize(), expected_output);
-    }
-
-    #[test]
     fn test_canonicalize() {
-        //init(tracing::Level::DEBUG);
+        init(tracing::Level::INFO);
+        // init(tracing::Level::DEBUG);
 
         const BASE_PATH: &str = "tests/urdna2015";
 
@@ -116,23 +60,29 @@ _:c14n3 <http://example.com/#p2> "Foo" .
         let range = 1..=63;
         for i in range {
             let input_path = format!("{BASE_PATH}/test{:03}-in.nq", i);
-            let input = match read_nquads(&input_path) {
-                Some(s) => s,
-                None => continue,
-            };
+            let parser = DatasetParser::from_format(DatasetFormat::NQuads);
+            let file = BufReader::new(File::open(input_path).unwrap());
+            let input_dataset = parser
+                .read_quads(file)
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+
+            let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
+            canonicalized_dataset.sort_by_cached_key(|q| q.to_string());
+            let serialized_canonicalized_dataset: String = canonicalized_dataset
+                .iter()
+                .map(|q| q.to_string() + " .\n")
+                .collect();
+
             let output_path = format!("{BASE_PATH}/test{:03}-urdna2015.nq", i);
             let output = match read_nquads(&output_path) {
                 Some(s) => s,
                 None => continue,
             };
 
-            let input_dataset = parse(&input).unwrap();
-            let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-            canonicalized_dataset.sort();
-
             assert_eq!(
-                canonicalized_dataset.serialize(),
-                output,
+                serialized_canonicalized_dataset, output,
                 "Failed: test{:03}",
                 i
             );
