@@ -9,8 +9,8 @@ edition = "2021"
 base16ct = "0.2"
 indexmap = "1.9"
 itertools = "0.10"
-oxigraph = "0.3"
-oxrdf = "0.1"
+oxigraph = { git = "https://github.com/yamdan/oxigraph.git", branch = "yamdan-canonical-escaping" }
+oxrdf = { git = "https://github.com/yamdan/oxigraph.git", branch = "yamdan-canonical-escaping" }
 sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
