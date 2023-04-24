@@ -57,7 +57,7 @@ mod tests {
             }
         }
 
-        let range = 1..=63;
+        let range = 1..=69;
         for i in range {
             let input_path = format!("{BASE_PATH}/test{:03}-in.nq", i);
             let parser = DatasetParser::from_format(DatasetFormat::NQuads);
@@ -76,13 +76,13 @@ mod tests {
                 .collect();
 
             let output_path = format!("{BASE_PATH}/test{:03}-urdna2015.nq", i);
-            let output = match read_nquads(&output_path) {
+            let expected_output = match read_nquads(&output_path) {
                 Some(s) => s,
                 None => continue,
             };
 
             assert_eq!(
-                serialized_canonicalized_dataset, output,
+                serialized_canonicalized_dataset, expected_output,
                 "Failed: test{:03}",
                 i
             );
