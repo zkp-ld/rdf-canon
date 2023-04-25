@@ -1,5 +1,5 @@
-mod canon;
-mod error;
+pub mod canon;
+pub mod error;
 pub use crate::canon::canonicalize;
 pub use crate::error::CanonicalizationError;
 
