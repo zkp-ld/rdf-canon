@@ -8,7 +8,7 @@ The purpose of this implementation is only to understand and evaluate the specif
 ## Prerequisites
 
 - [Oxigraph and Oxrdf (forked)](https://github.com/yamdan/oxigraph): A modified version with changes to the Literal generation section to produce Canonical N-Triples and N-Quads. A Pull Request is planned to be submitted to the original repository.
-- libclang: Required for building Oxigraph
+- libclang: Required for building Oxigraph (`sudo apt install libclang-dev` for debian/ubuntu user if necessary)
 
 ## Usage
 
