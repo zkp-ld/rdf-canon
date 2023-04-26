@@ -524,6 +524,19 @@ pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, Canonicalization
     normalized_dataset
 }
 
+/// **5. Serialization**
+///   The serialized canonical form of a normalized dataset is an N-Quads document [N-QUADS]
+///   created by representing each quad from the normalized dataset in canonical n-quads form,
+///   sorting them into code point order, and concatenating them.
+pub fn serialize(dataset: Dataset) -> String {
+    let mut ordered_dataset: Vec<QuadRef> = dataset.iter().collect();
+    ordered_dataset.sort_by_cached_key(|q| q.to_string());
+    ordered_dataset
+        .iter()
+        .map(|q| q.to_string() + " .\n")
+        .collect()
+}
+
 /// **4.7 Hash First Degree Quads**
 ///   This algorithm calculates a hash for a given blank node across the
 ///   quads in a dataset in which that blank node is a component. If the
