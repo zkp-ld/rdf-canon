@@ -14,6 +14,49 @@ The purpose of this implementation is only to understand and evaluate the specif
 
 TBD
 
+## Example
+
+```rust
+use oxigraph::io::{DatasetFormat, DatasetParser};
+use oxrdf::Dataset;
+use rdf_canon::{canonicalize, serialize};
+use std::io::Cursor;
+
+fn main() {
+    let input_doc = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .  # test for canonical N-Quads
+_:e0 <http://example.org/vocab#next> _:e1 .
+_:e0 <http://example.org/vocab#prev> _:e2 .
+_:e1 <http://example.org/vocab#next> _:e2 .
+_:e1 <http://example.org/vocab#prev> _:e0 .
+_:e2 <http://example.org/vocab#next> _:e0 .
+_:e2 <http://example.org/vocab#prev> _:e1 .
+"#;
+    let expected_canonicalized_doc = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
+_:c14n0 <http://example.org/vocab#next> _:c14n2 .
+_:c14n0 <http://example.org/vocab#prev> _:c14n1 .
+_:c14n1 <http://example.org/vocab#next> _:c14n0 .
+_:c14n1 <http://example.org/vocab#prev> _:c14n2 .
+_:c14n2 <http://example.org/vocab#next> _:c14n1 .
+_:c14n2 <http://example.org/vocab#prev> _:c14n0 .
+"#;
+
+    // get dataset from N-Quads document
+    let parser = DatasetParser::from_format(DatasetFormat::NQuads);
+    let quads = parser
+        .read_quads(Cursor::new(input_doc))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let input_dataset = Dataset::from_iter(quads);
+
+    // canonicalize the dataset
+    let normalized_dataset = canonicalize(&input_dataset).unwrap();
+    let canonicalized_doc = serialize(normalized_dataset);
+
+    assert_eq!(canonicalized_doc, expected_canonicalized_doc);
+}
+```
+
 ## Changelog
 
 ### v0.3.0
