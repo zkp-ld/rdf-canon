@@ -12,7 +12,19 @@ The purpose of this implementation is only to understand and evaluate the specif
 
 ## Usage
 
-TBD
+Add the following dependencies into your Cargo.toml:
+(**current limitation**: use the forked Oxigraph and Oxrdf on GitHub)
+
+```toml
+[dependencies]
+rdf-canon = { git = "https://github.com/yamdan/rdf-canon-rust.git" }
+oxigraph = { git = "https://github.com/yamdan/oxigraph.git", branch = "yamdan-canonical-escaping" }
+oxrdf = { git = "https://github.com/yamdan/oxigraph.git", branch = "yamdan-canonical-escaping" }
+```
+
+Then you can use:
+- `rdf_canon::canonicalize` to canonicalize OxRDF `Dataset`, and
+- `rdf_canon::serialize` to serialize the canonicalized `Dataset` into a canonical N-Quads
 
 ## Example
 
