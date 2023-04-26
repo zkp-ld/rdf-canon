@@ -59,6 +59,11 @@ _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 
 ## Changelog
 
+### v0.4.0
+
+- Add `serialize` function to serialize a normalized dataset into a canonical N-Quads document
+- Add an example into README
+
 ### v0.3.0
 
 - Revise input/output of canonicalization using OxRDF `Dataset` instead of `Vec<Quad>`
