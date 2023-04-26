@@ -7,6 +7,7 @@ pub use crate::error::CanonicalizationError;
 mod tests {
     use crate::canon::canonicalize;
     use oxigraph::io::{DatasetFormat, DatasetParser};
+    use oxrdf::{Dataset, QuadRef};
     use std::{
         fs::File,
         io::{BufReader, Read},
@@ -62,15 +63,14 @@ mod tests {
             let input_path = format!("{BASE_PATH}/test{:03}-in.nq", i);
             let parser = DatasetParser::from_format(DatasetFormat::NQuads);
             let file = BufReader::new(File::open(input_path).unwrap());
-            let input_dataset = parser
-                .read_quads(file)
-                .unwrap()
-                .collect::<Result<Vec<_>, _>>()
-                .unwrap();
+            let input_dataset =
+                Dataset::from_iter(parser.read_quads(file).unwrap().map(|x| x.unwrap()));
 
-            let mut canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-            canonicalized_dataset.sort_by_cached_key(|q| q.to_string());
-            let serialized_canonicalized_dataset: String = canonicalized_dataset
+            let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
+            let mut ordered_canonicalized_dataset: Vec<QuadRef> =
+                canonicalized_dataset.iter().collect();
+            ordered_canonicalized_dataset.sort_by_cached_key(|q| q.to_string());
+            let ordered_canonicalized_document: String = ordered_canonicalized_dataset
                 .iter()
                 .map(|q| q.to_string() + " .\n")
                 .collect();
@@ -82,7 +82,7 @@ mod tests {
             };
 
             assert_eq!(
-                serialized_canonicalized_dataset, expected_output,
+                ordered_canonicalized_document, expected_output,
                 "Failed: test{:03}",
                 i
             );

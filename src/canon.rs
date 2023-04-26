@@ -2,7 +2,10 @@ use crate::error::CanonicalizationError;
 use base16ct::lower::encode_str;
 use indexmap::IndexMap;
 use itertools::Itertools;
-use oxrdf::{BlankNode, GraphName, Quad, Subject, Term};
+use oxrdf::{
+    BlankNode, BlankNodeRef, Dataset, GraphName, GraphNameRef, Quad, QuadRef, Subject, SubjectRef,
+    Term, TermRef,
+};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use tracing::{debug, debug_span};
@@ -35,36 +38,36 @@ impl CanonicalizationState {
         }
     }
 
-    fn update_blank_node_to_quads_map(&mut self, dataset: &[Quad]) {
+    fn update_blank_node_to_quads_map(&mut self, dataset: &Dataset) {
         // **4.5.3 Algorithm**
         // 2) For every quad Q in input dataset:
         for quad in dataset.iter() {
             // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
             // entry for the blank node identifier identifier in the blank node to quads map,
             // creating a new entry if necessary.
-            if let Subject::BlankNode(n) = &quad.subject {
+            if let SubjectRef::BlankNode(n) = &quad.subject {
                 self.blank_node_to_quads_map
                     .entry(n.to_string())
                     .or_insert_with(Vec::<Quad>::new)
-                    .push(quad.clone());
+                    .push(quad.into());
             }
             // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
             // entry for the blank node identifier identifier in the blank node to quads map,
             // creating a new entry if necessary.
-            if let Term::BlankNode(n) = &quad.object {
+            if let TermRef::BlankNode(n) = &quad.object {
                 self.blank_node_to_quads_map
                     .entry(n.to_string())
                     .or_insert_with(Vec::<Quad>::new)
-                    .push(quad.clone());
+                    .push(quad.into());
             }
             // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
             // entry for the blank node identifier identifier in the blank node to quads map,
             // creating a new entry if necessary.
-            if let GraphName::BlankNode(n) = &quad.graph_name {
+            if let GraphNameRef::BlankNode(n) = &quad.graph_name {
                 self.blank_node_to_quads_map
                     .entry(n.to_string())
                     .or_insert_with(Vec::<Quad>::new)
-                    .push(quad.clone());
+                    .push(quad.into());
             }
         }
     }
@@ -122,7 +125,7 @@ impl IdentifierIssuer {
         self.identifier_counter += 1
     }
 
-    fn get(&self, existing_identifier: &String) -> Option<String> {
+    fn get(&self, existing_identifier: &str) -> Option<String> {
         self.issued_identifiers_map
             .get(existing_identifier)
             .cloned()
@@ -137,7 +140,7 @@ impl IdentifierIssuer {
     /// **4.6.2 Algorithm**
     ///   The algorithm takes an identifier issuer I and an existing identifier as
     ///   inputs. The output is a new issued identifier.
-    fn issue(&mut self, existing_identifier: &String) -> String {
+    fn issue(&mut self, existing_identifier: &str) -> String {
         // 1) If there is a map entry for existing identifier in issued identifiers
         // map of I, return it.
         if let Some(issued_identifier) = self.get(existing_identifier) {
@@ -151,7 +154,7 @@ impl IdentifierIssuer {
         // 3) Add an entry mapping existing identifier to issued identifier to
         // the issued identifiers map of I.
         self.issued_identifiers_map
-            .insert(existing_identifier.clone(), issued_identifier.clone());
+            .insert(existing_identifier.to_string(), issued_identifier.clone());
 
         // 4) Increment identifier counter.
         self.increment();
@@ -188,53 +191,53 @@ fn hash(data: impl AsRef<[u8]>) -> Result<String, CanonicalizationError> {
     }
 }
 
-fn canonicalize_quad(q: &Quad, issuer: &IdentifierIssuer) -> Result<Quad, CanonicalizationError> {
+fn canonicalize_quad(q: QuadRef, issuer: &IdentifierIssuer) -> Result<Quad, CanonicalizationError> {
     Ok(Quad::new(
-        canonicalize_subject(&q.subject, issuer)?,
-        q.predicate.clone(),
-        canonicalize_term(&q.object, issuer)?,
-        canonicalize_graph_name(&q.graph_name, issuer)?,
+        canonicalize_subject(q.subject, issuer)?,
+        q.predicate,
+        canonicalize_term(q.object, issuer)?,
+        canonicalize_graph_name(q.graph_name, issuer)?,
     ))
 }
 
 fn canonicalize_subject(
-    s: &Subject,
+    s: SubjectRef,
     issuer: &IdentifierIssuer,
 ) -> Result<Subject, CanonicalizationError> {
     match s {
-        Subject::BlankNode(blank_node) => match canonicalize_blank_node(blank_node, issuer) {
+        SubjectRef::BlankNode(blank_node) => match canonicalize_blank_node(blank_node, issuer) {
             Ok(canonicalized_blank_node) => Ok(Subject::BlankNode(canonicalized_blank_node)),
             Err(e) => Err(e),
         },
-        _ => Ok(s.clone()),
+        _ => Ok(s.into()),
     }
 }
 
-fn canonicalize_term(o: &Term, issuer: &IdentifierIssuer) -> Result<Term, CanonicalizationError> {
+fn canonicalize_term(o: TermRef, issuer: &IdentifierIssuer) -> Result<Term, CanonicalizationError> {
     match o {
-        Term::BlankNode(blank_node) => match canonicalize_blank_node(blank_node, issuer) {
+        TermRef::BlankNode(blank_node) => match canonicalize_blank_node(blank_node, issuer) {
             Ok(canonicalized_blank_node) => Ok(Term::BlankNode(canonicalized_blank_node)),
             Err(e) => Err(e),
         },
-        _ => Ok(o.clone()),
+        _ => Ok(o.into()),
     }
 }
 
 fn canonicalize_graph_name(
-    g: &GraphName,
+    g: GraphNameRef,
     issuer: &IdentifierIssuer,
 ) -> Result<GraphName, CanonicalizationError> {
     match g {
-        GraphName::BlankNode(blank_node) => match canonicalize_blank_node(blank_node, issuer) {
+        GraphNameRef::BlankNode(blank_node) => match canonicalize_blank_node(blank_node, issuer) {
             Ok(canonicalized_blank_node) => Ok(GraphName::BlankNode(canonicalized_blank_node)),
             Err(e) => Err(e),
         },
-        _ => Ok(g.clone()),
+        _ => Ok(g.into()),
     }
 }
 
 fn canonicalize_blank_node(
-    b: &BlankNode,
+    b: BlankNodeRef,
     issuer: &IdentifierIssuer,
 ) -> Result<BlankNode, CanonicalizationError> {
     let canonical_identifier = issuer.get(&b.to_string());
@@ -247,7 +250,7 @@ fn canonicalize_blank_node(
 /// **4.5 Canonicalization Algorithm**
 ///   The canonicalization algorithm converts an input dataset into a normalized dataset.
 ///   This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
-pub fn canonicalize(input_dataset: &[Quad]) -> Result<Vec<Quad>, CanonicalizationError> {
+pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, CanonicalizationError> {
     // * log * //
     let _span_ca = debug_span!(
         "ca",
@@ -508,7 +511,7 @@ pub fn canonicalize(input_dataset: &[Quad]) -> Result<Vec<Quad>, Canonicalizatio
     // 6.1) Create a copy, quad copy, of q and replace any existing blank node identifier n using the
     // canonical identifiers previously issued by canonical issuer.
     // 6.2) Add quad copy to the normalized dataset.
-    let normalized_dataset: Result<Vec<Quad>, CanonicalizationError> = input_dataset
+    let normalized_dataset: Result<Dataset, CanonicalizationError> = input_dataset
         .iter()
         .map(|q| canonicalize_quad(q, &state.canonical_issuer))
         .collect();
@@ -1161,45 +1164,21 @@ fn hash_n_degree_quads(
 
 #[cfg(test)]
 mod tests {
-    use oxrdf::{BlankNode, NamedNode};
+    use oxrdf::{BlankNode, NamedNode, NamedNodeRef};
 
     use super::*;
 
     #[test]
     fn test_issue_identifier() {
         let mut canonical_issuer = IdentifierIssuer::new("c14n");
-        assert_eq!(
-            canonical_issuer.issue(&"b0".to_string()),
-            "c14n0".to_string()
-        );
-        assert_eq!(
-            canonical_issuer.issue(&"b1".to_string()),
-            "c14n1".to_string()
-        );
-        assert_eq!(
-            canonical_issuer.issue(&"b99".to_string()),
-            "c14n2".to_string()
-        );
-        assert_eq!(
-            canonical_issuer.issue(&"xyz".to_string()),
-            "c14n3".to_string()
-        );
-        assert_eq!(
-            canonical_issuer.issue(&"xyz".to_string()),
-            "c14n3".to_string()
-        );
-        assert_eq!(
-            canonical_issuer.issue(&"b99".to_string()),
-            "c14n2".to_string()
-        );
-        assert_eq!(
-            canonical_issuer.issue(&"b1".to_string()),
-            "c14n1".to_string()
-        );
-        assert_eq!(
-            canonical_issuer.issue(&"b0".to_string()),
-            "c14n0".to_string()
-        );
+        assert_eq!(canonical_issuer.issue("b0"), "c14n0".to_string());
+        assert_eq!(canonical_issuer.issue("b1"), "c14n1".to_string());
+        assert_eq!(canonical_issuer.issue("b99"), "c14n2".to_string());
+        assert_eq!(canonical_issuer.issue("xyz"), "c14n3".to_string());
+        assert_eq!(canonical_issuer.issue("xyz"), "c14n3".to_string());
+        assert_eq!(canonical_issuer.issue("b99"), "c14n2".to_string());
+        assert_eq!(canonical_issuer.issue("b1"), "c14n1".to_string());
+        assert_eq!(canonical_issuer.issue("b0"), "c14n0".to_string());
     }
 
     #[test]
@@ -1207,39 +1186,40 @@ mod tests {
         let mut state = CanonicalizationState::new();
 
         let e0 = BlankNode::default();
+        let e0 = e0.as_ref();
         let e1 = BlankNode::default();
-        let p = NamedNode::new("http://example.com/#p").unwrap();
-        let q = NamedNode::new("http://example.com/#q").unwrap();
-        let r = NamedNode::new("http://example.com/#r").unwrap();
-        let s = NamedNode::new("http://example.com/#s").unwrap();
-        let t = NamedNode::new("http://example.com/#t").unwrap();
-        let u = NamedNode::new("http://example.com/#u").unwrap();
-        let input_dataset = vec![
-            Quad::new(
-                Subject::NamedNode(p.clone()),
-                q,
-                Term::BlankNode(e0.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::NamedNode(p),
-                r,
-                Term::BlankNode(e1.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::BlankNode(e0.clone()),
-                s,
-                Term::NamedNode(u.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::BlankNode(e1.clone()),
-                t,
-                Term::NamedNode(u),
-                GraphName::DefaultGraph,
-            ),
-        ];
+        let e1 = e1.as_ref();
+        let p = NamedNodeRef::new("http://example.com/#p").unwrap();
+        let q = NamedNodeRef::new("http://example.com/#q").unwrap();
+        let r = NamedNodeRef::new("http://example.com/#r").unwrap();
+        let s = NamedNodeRef::new("http://example.com/#s").unwrap();
+        let t = NamedNodeRef::new("http://example.com/#t").unwrap();
+        let u = NamedNodeRef::new("http://example.com/#u").unwrap();
+        let mut input_dataset = Dataset::default();
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::NamedNode(p),
+            q,
+            TermRef::BlankNode(e0),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::NamedNode(p),
+            r,
+            TermRef::BlankNode(e1),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e0),
+            s,
+            TermRef::NamedNode(u),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e1),
+            t,
+            TermRef::NamedNode(u),
+            GraphNameRef::DefaultGraph,
+        ));
 
         state.update_blank_node_to_quads_map(&input_dataset);
 
@@ -1260,44 +1240,47 @@ mod tests {
         let mut state = CanonicalizationState::new();
 
         let e0 = BlankNode::default();
+        let e0 = e0.as_ref();
         let e1 = BlankNode::default();
+        let e1 = e1.as_ref();
         let e2 = BlankNode::default();
+        let e2 = e2.as_ref();
         let e3 = BlankNode::default();
-        let p = NamedNode::new("http://example.com/#p").unwrap();
-        let q = NamedNode::new("http://example.com/#q").unwrap();
-        let r = NamedNode::new("http://example.com/#r").unwrap();
-        let input_dataset = vec![
-            Quad::new(
-                Subject::NamedNode(p.clone()),
-                q.clone(),
-                Term::BlankNode(e0.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::NamedNode(p.clone()),
-                q,
-                Term::BlankNode(e1.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::BlankNode(e0.clone()),
-                p.clone(),
-                Term::BlankNode(e2.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::BlankNode(e1.clone()),
-                p,
-                Term::BlankNode(e3.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::BlankNode(e2.clone()),
-                r,
-                Term::BlankNode(e3.clone()),
-                GraphName::DefaultGraph,
-            ),
-        ];
+        let e3 = e3.as_ref();
+        let p = NamedNodeRef::new("http://example.com/#p").unwrap();
+        let q = NamedNodeRef::new("http://example.com/#q").unwrap();
+        let r = NamedNodeRef::new("http://example.com/#r").unwrap();
+        let mut input_dataset = Dataset::default();
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::NamedNode(p),
+            q,
+            TermRef::BlankNode(e0),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::NamedNode(p),
+            q,
+            TermRef::BlankNode(e1),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e0),
+            p,
+            TermRef::BlankNode(e2),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e1),
+            p,
+            TermRef::BlankNode(e3),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e2),
+            r,
+            TermRef::BlankNode(e3),
+            GraphNameRef::DefaultGraph,
+        ));
 
         state.update_blank_node_to_quads_map(&input_dataset);
 
@@ -1354,44 +1337,47 @@ mod tests {
         let mut state = CanonicalizationState::new();
 
         let e0 = BlankNode::default();
+        let e0 = e0.as_ref();
         let e1 = BlankNode::default();
+        let e1 = e1.as_ref();
         let e2 = BlankNode::default();
+        let e2 = e2.as_ref();
         let e3 = BlankNode::default();
-        let p = NamedNode::new("http://example.com/#p").unwrap();
-        let q = NamedNode::new("http://example.com/#q").unwrap();
-        let r = NamedNode::new("http://example.com/#r").unwrap();
-        let input_dataset = vec![
-            Quad::new(
-                Subject::NamedNode(p.clone()),
-                q.clone(),
-                Term::BlankNode(e0.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::NamedNode(p.clone()),
-                q,
-                Term::BlankNode(e1.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::BlankNode(e0),
-                p.clone(),
-                Term::BlankNode(e2.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::BlankNode(e1),
-                p,
-                Term::BlankNode(e3.clone()),
-                GraphName::DefaultGraph,
-            ),
-            Quad::new(
-                Subject::BlankNode(e2),
-                r,
-                Term::BlankNode(e3),
-                GraphName::DefaultGraph,
-            ),
-        ];
+        let e3 = e3.as_ref();
+        let p = NamedNodeRef::new("http://example.com/#p").unwrap();
+        let q = NamedNodeRef::new("http://example.com/#q").unwrap();
+        let r = NamedNodeRef::new("http://example.com/#r").unwrap();
+        let mut input_dataset = Dataset::default();
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::NamedNode(p),
+            q,
+            TermRef::BlankNode(e0),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::NamedNode(p),
+            q,
+            TermRef::BlankNode(e1),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e0),
+            p,
+            TermRef::BlankNode(e2),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e1),
+            p,
+            TermRef::BlankNode(e3),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e2),
+            r,
+            TermRef::BlankNode(e3),
+            GraphNameRef::DefaultGraph,
+        ));
 
         state.update_blank_node_to_quads_map(&input_dataset);
 
