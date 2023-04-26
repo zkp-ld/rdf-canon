@@ -1,6 +1,7 @@
 [package]
 name = "rdf-canon"
-version = "0.2.0"
+authors = ["yamdan"]
+version = "0.3.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
