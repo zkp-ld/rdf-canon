@@ -16,13 +16,19 @@ TBD
 
 ## Changelog
 
-### Version 0.2.0
+### v0.3.0
+
+- Revise input/output of canonicalization using OxRDF `Dataset` instead of `Vec<Quad>`
+- Some optimizations
+- Fix bug related to module scopes
+
+### v0.2.0
 
 We have moved away from using our ad-hoc N-Quads parser and RDF data structures and have instead adopted the use of [Oxigraph (and its internal OxRDF)](https://github.com/oxigraph/oxigraph).
 This change makes it easier to canonicalize Oxigraph's internal data and output.
 However, the current version of Oxigraph does not provide the latest [Canonical N-Triples](https://w3c.github.io/rdf-n-triples/spec/#canonical-ntriples) and [Canonical N-Quads](https://w3c.github.io/rdf-n-quads/spec/#canonical-quads) representations.
 Therefore, we are currently relying on our [forked Oxigraph and Oxrdf](https://github.com/yamdan/oxigraph) that supports canonical representations.
 
-### Version 0.1.0
+### v0.1.0
 
 Initial release. It does not pass [test060](https://w3c.github.io/rdf-canon/tests/#manifest-urdna2015#test060) since it uses an ad-hoc N-Quads parser and serializer. (See [#1](https://github.com/yamdan/rdf-canon-rust/issues/1))
