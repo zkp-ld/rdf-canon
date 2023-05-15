@@ -13,14 +13,20 @@ mod tests {
         io::{BufReader, Read},
         path::Path,
     };
-    use tracing::metadata::LevelFilter;
-    use tracing_subscriber::{fmt, prelude::*};
 
+    #[cfg(feature = "log")]
+    use tracing::metadata::LevelFilter;
+    #[cfg(feature = "log")]
+    use tracing_subscriber::{fmt, prelude::*};
+    #[cfg(feature = "log")]
     mod logger;
+    #[cfg(feature = "log")]
     use logger::CustomLayer;
 
+    #[cfg(feature = "log")]
     const INDENT_WIDTH: usize = 2;
 
+    #[cfg(feature = "log")]
     fn _init(level: tracing::Level) {
         let log_format = fmt::format()
             .with_level(false)
@@ -32,6 +38,7 @@ mod tests {
             .event_format(log_format)
             .try_init();
     }
+    #[cfg(feature = "log")]
     fn init(level: tracing::Level) {
         let _ = tracing_subscriber::registry()
             .with(CustomLayer::new(INDENT_WIDTH).with_filter(LevelFilter::from_level(level)))
@@ -40,6 +47,7 @@ mod tests {
 
     #[test]
     fn test_canonicalize() {
+        #[cfg(feature = "log")]
         init(tracing::Level::INFO);
         // init(tracing::Level::DEBUG);
 
