@@ -69,7 +69,17 @@ _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 }
 ```
 
+## Logging feature (for debug)
+
+Enable `log` feature to get the debug log if you want (See [src/lib.rs](src/lib.rs))
+
 ## Changelog
+
+### v0.5.0
+
+- Turn logger into a feature: the logger can now be optionally included in our builds, depending on the requirements of each specific build
+- Fix logger to avoid unexpected panic
+- update `.gitignore`
 
 ### v0.4.0
 
