@@ -17,7 +17,7 @@ mod tests {
     #[cfg(feature = "log")]
     use tracing::metadata::LevelFilter;
     #[cfg(feature = "log")]
-    use tracing_subscriber::{fmt, prelude::*};
+    use tracing_subscriber::prelude::*;
     #[cfg(feature = "log")]
     mod logger;
     #[cfg(feature = "log")]
@@ -27,19 +27,7 @@ mod tests {
     const INDENT_WIDTH: usize = 2;
 
     #[cfg(feature = "log")]
-    fn _init(level: tracing::Level) {
-        let log_format = fmt::format()
-            .with_level(false)
-            .with_target(false)
-            .without_time()
-            .compact();
-        let _ = fmt()
-            .with_max_level(level)
-            .event_format(log_format)
-            .try_init();
-    }
-    #[cfg(feature = "log")]
-    fn init(level: tracing::Level) {
+    fn init_logger(level: tracing::Level) {
         let _ = tracing_subscriber::registry()
             .with(CustomLayer::new(INDENT_WIDTH).with_filter(LevelFilter::from_level(level)))
             .try_init();
@@ -48,8 +36,8 @@ mod tests {
     #[test]
     fn test_canonicalize() {
         #[cfg(feature = "log")]
-        init(tracing::Level::INFO);
-        // init(tracing::Level::DEBUG);
+        init_logger(tracing::Level::INFO);
+        // init_logger(tracing::Level::DEBUG);
 
         const BASE_PATH: &str = "tests/urdna2015";
 
