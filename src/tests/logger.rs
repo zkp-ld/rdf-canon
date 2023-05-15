@@ -71,9 +71,10 @@ where
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
         // load base indent
-        let span = ctx.lookup_current().unwrap();
-        let extensions = span.extensions();
-        let base_indent: &usize = extensions.get().unwrap_or(&0);
+        let base_indent = match ctx.lookup_current() {
+            Some(span) => *span.extensions().get().unwrap_or(&0),
+            None => 0,
+        };
 
         // get delta indent
         let mut visitor = CustomVisitor {
