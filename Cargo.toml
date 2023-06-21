@@ -15,9 +15,7 @@ oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
-
-[dev-dependencies]
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", optional = true }
 
 [features]
-log = [ "tracing-subscriber" ]
+log = ["tracing-subscriber"]
