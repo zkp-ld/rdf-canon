@@ -60,7 +60,7 @@ mod tests {
             let parser = DatasetParser::from_format(DatasetFormat::NQuads);
             let file = BufReader::new(File::open(input_path).unwrap());
             let input_dataset =
-                Dataset::from_iter(parser.read_quads(file).unwrap().map(|x| x.unwrap()));
+                Dataset::from_iter(parser.read_quads(file).map(|x| x.unwrap()));
 
             let normalized_dataset = canonicalize(&input_dataset).unwrap();
             let canonicalized_document = serialize(normalized_dataset);
