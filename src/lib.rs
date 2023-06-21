@@ -9,7 +9,7 @@ pub use crate::logger::YamlLayer;
 
 #[cfg(test)]
 mod tests {
-    use crate::canon::{canonicalize, serialize};
+    use crate::canon::{canonicalize_with_limited_recursion, serialize};
     use oxrdf::Dataset;
     use oxttl::NQuadsParser;
     use std::{
@@ -69,7 +69,10 @@ mod tests {
                 .map(|x| x.unwrap());
             let input_dataset = Dataset::from_iter(input_quads);
 
-            let normalized_dataset = canonicalize(&input_dataset).unwrap();
+            // at least 12 recursions must be allowed to pass "evil" tests, i.e., test{044, 045, 046}
+            let recursion_limit = Some(12);
+            let normalized_dataset =
+                canonicalize_with_limited_recursion(&input_dataset, recursion_limit).unwrap();
             let canonicalized_document = serialize(normalized_dataset);
 
             let output_path = format!("{BASE_PATH}/test{:03}-rdfc10.nq", i);
