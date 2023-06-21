@@ -1,7 +1,7 @@
 [package]
 name = "rdf-canon"
 authors = ["yamdan"]
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,14 +10,14 @@ edition = "2021"
 base16ct = "0.2"
 indexmap = "1.9"
 itertools = "0.10"
-oxigraph = { git = "https://github.com/yamdan/oxigraph.git", branch = "yamdan-canonical-escaping" }
-oxrdf = { git = "https://github.com/yamdan/oxigraph.git", branch = "yamdan-canonical-escaping" }
+oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", optional = true }
 
 [dev-dependencies]
-tracing-subscriber = "0.3"
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 
 [features]
-log = []
+log = ["tracing-subscriber"]

@@ -49,7 +49,7 @@ impl CanonicalizationState {
             // creating a new entry if necessary.
             if let SubjectRef::BlankNode(n) = &quad.subject {
                 self.blank_node_to_quads_map
-                    .entry(n.to_string())
+                    .entry(n.as_str().to_string())
                     .or_insert_with(Vec::<Quad>::new)
                     .push(quad.into());
             }
@@ -58,7 +58,7 @@ impl CanonicalizationState {
             // creating a new entry if necessary.
             if let TermRef::BlankNode(n) = &quad.object {
                 self.blank_node_to_quads_map
-                    .entry(n.to_string())
+                    .entry(n.as_str().to_string())
                     .or_insert_with(Vec::<Quad>::new)
                     .push(quad.into());
             }
@@ -67,7 +67,7 @@ impl CanonicalizationState {
             // creating a new entry if necessary.
             if let GraphNameRef::BlankNode(n) = &quad.graph_name {
                 self.blank_node_to_quads_map
-                    .entry(n.to_string())
+                    .entry(n.as_str().to_string())
                     .or_insert_with(Vec::<Quad>::new)
                     .push(quad.into());
             }
@@ -244,7 +244,7 @@ fn canonicalize_blank_node(
     b: BlankNodeRef,
     issuer: &IdentifierIssuer,
 ) -> Result<BlankNode, CanonicalizationError> {
-    let canonical_identifier = issuer.get(&b.to_string());
+    let canonical_identifier = issuer.get(b.as_str());
     match canonical_identifier {
         Some(id) => Ok(BlankNode::new(id)?),
         None => Err(CanonicalizationError::CanonicalIdentifierNotExist),
@@ -254,6 +254,41 @@ fn canonicalize_blank_node(
 /// **4.5 Canonicalization Algorithm**
 ///   The canonicalization algorithm converts an input dataset into a normalized dataset.
 ///   This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
+///
+/// ```
+/// use oxrdf::Dataset;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::{canonicalize, serialize};
+/// use std::io::Cursor;
+
+/// let input_doc = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .  # test for canonical N-Quads
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let expected_canonicalized_doc = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
+/// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
+/// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
+/// _:c14n1 <http://example.org/vocab#next> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
+/// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
+/// "#;
+///
+/// let quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input_doc))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let input_dataset = Dataset::from_iter(quads);
+///
+/// let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
+/// let canonicalized_doc = serialize(canonicalized_dataset);
+///
+/// assert_eq!(canonicalized_doc, expected_canonicalized_doc);
+/// ```
 pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, CanonicalizationError> {
     #[cfg(feature = "log")]
     let _span_ca = debug_span!(
@@ -496,7 +531,7 @@ pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, Canonicalization
     .entered();
     #[cfg(feature = "log")]
     debug!(
-        "canonical issuer: {}",
+        "issued identifiers map: {}",
         state.canonical_issuer.serialize_issued_identifiers_map()
     );
 
@@ -600,7 +635,7 @@ fn hash_first_degree_quads(
     // blank node identifier then use the blank node identifier a, otherwise, use the blank
     // node identifier z.
     fn replace_bnid(bnode: &BlankNode, reference_blank_node_identifier: &String) -> BlankNode {
-        if bnode.to_string() == *reference_blank_node_identifier {
+        if bnode.as_str() == *reference_blank_node_identifier {
             BlankNode::new("a").unwrap()
         } else {
             BlankNode::new("z").unwrap()
@@ -808,7 +843,7 @@ fn hash_n_degree_quads(
         // 3.1) For each component in quad, where component is the subject, object, or graph name,
         // and it is a blank node that is not identified by identifier:
         if let Subject::BlankNode(bnode) = &quad.subject {
-            let bnode_id = bnode.to_string();
+            let bnode_id = bnode.as_str().to_string();
             if bnode_id != identifier {
                 // 3.1.1) Set hash to the result of the Hash Related Blank Node algorithm, passing
                 // the blank node identifier for component as related, quad, issuer, and position
@@ -839,7 +874,7 @@ fn hash_n_degree_quads(
         // 3.1) For each component in quad, where component is the subject, object, or graph name,
         // and it is a blank node that is not identified by identifier:
         if let Term::BlankNode(bnode) = &quad.object {
-            let bnode_id = bnode.to_string();
+            let bnode_id = bnode.as_str().to_string();
             if bnode_id != identifier {
                 // 3.1.1) Set hash to the result of the Hash Related Blank Node algorithm, passing
                 // the blank node identifier for component as related, quad, issuer, and position
@@ -870,7 +905,7 @@ fn hash_n_degree_quads(
         // 3.1) For each component in quad, where component is the subject, object, or graph name,
         // and it is a blank node that is not identified by identifier:
         if let GraphName::BlankNode(bnode) = &quad.graph_name {
-            let bnode_id = bnode.to_string();
+            let bnode_id = bnode.as_str().to_string();
             if bnode_id != identifier {
                 // 3.1.1) Set hash to the result of the Hash Related Blank Node algorithm, passing
                 // the blank node identifier for component as related, quad, issuer, and position
@@ -1225,12 +1260,12 @@ mod tests {
 
         state.update_blank_node_to_quads_map(&input_dataset);
 
-        let hash_e0 = hash_first_degree_quads(&state, &e0.to_string());
+        let hash_e0 = hash_first_degree_quads(&state, &e0.as_str().to_string());
         assert_eq!(
             hash_e0.unwrap(),
             "21d1dd5ba21f3dee9d76c0c00c260fa6f5d5d65315099e553026f4828d0dc77a".to_string()
         );
-        let hash_e1 = hash_first_degree_quads(&state, &e1.to_string());
+        let hash_e1 = hash_first_degree_quads(&state, &e1.as_str().to_string());
         assert_eq!(
             hash_e1.unwrap(),
             "6fa0b9bdb376852b5743ff39ca4cbf7ea14d34966b2828478fbf222e7c764473".to_string()
@@ -1286,22 +1321,22 @@ mod tests {
 
         state.update_blank_node_to_quads_map(&input_dataset);
 
-        let hash_e0 = hash_first_degree_quads(&state, &e0.to_string());
+        let hash_e0 = hash_first_degree_quads(&state, &e0.as_str().to_string());
         assert_eq!(
             hash_e0.unwrap(),
             "3b26142829b8887d011d779079a243bd61ab53c3990d550320a17b59ade6ba36".to_string()
         );
-        let hash_e1 = hash_first_degree_quads(&state, &e1.to_string());
+        let hash_e1 = hash_first_degree_quads(&state, &e1.as_str().to_string());
         assert_eq!(
             hash_e1.unwrap(),
             "3b26142829b8887d011d779079a243bd61ab53c3990d550320a17b59ade6ba36".to_string()
         );
-        let hash_e2 = hash_first_degree_quads(&state, &e2.to_string());
+        let hash_e2 = hash_first_degree_quads(&state, &e2.as_str().to_string());
         assert_eq!(
             hash_e2.unwrap(),
             "15973d39de079913dac841ac4fa8c4781c0febfba5e83e5c6e250869587f8659".to_string()
         );
-        let hash_e3 = hash_first_degree_quads(&state, &e3.to_string());
+        let hash_e3 = hash_first_degree_quads(&state, &e3.as_str().to_string());
         assert_eq!(
             hash_e3.unwrap(),
             "7e790a99273eed1dc57e43205d37ce232252c85b26ca4a6ff74ff3b5aea7bccd".to_string()
