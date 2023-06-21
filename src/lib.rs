@@ -39,7 +39,7 @@ mod tests {
         init_logger(tracing::Level::INFO);
         // init_logger(tracing::Level::DEBUG);
 
-        const BASE_PATH: &str = "tests/urdna2015";
+        const BASE_PATH: &str = "tests/rdfc10";
 
         fn read_nquads(path: &str) -> Option<String> {
             let path = Path::new(&path);
@@ -54,7 +54,7 @@ mod tests {
             }
         }
 
-        let range = 1..=69;
+        let range = 1..=73;
         for i in range {
             let input_path = format!("{BASE_PATH}/test{:03}-in.nq", i);
             let parser = DatasetParser::from_format(DatasetFormat::NQuads);
@@ -65,7 +65,7 @@ mod tests {
             let normalized_dataset = canonicalize(&input_dataset).unwrap();
             let canonicalized_document = serialize(normalized_dataset);
 
-            let output_path = format!("{BASE_PATH}/test{:03}-urdna2015.nq", i);
+            let output_path = format!("{BASE_PATH}/test{:03}-rdfc10.nq", i);
             let expected_output = match read_nquads(&output_path) {
                 Some(s) => s,
                 None => continue,
