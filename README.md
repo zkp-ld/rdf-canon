@@ -13,13 +13,13 @@ The purpose of this implementation is only to understand and evaluate the specif
 ## Usage
 
 Add the following dependencies into your Cargo.toml:
-(**current limitation**: use the forked Oxigraph and Oxrdf on GitHub)
+(**current limitation**: depending `next` branch of Oxigraph to use `oxttl`; will be updated when Oxigraph releases v0.4)
 
 ```toml
 [dependencies]
 rdf-canon = { git = "https://github.com/yamdan/rdf-canon-rust.git" }
-oxigraph = { git = "https://github.com/yamdan/oxigraph.git", branch = "yamdan-canonical-escaping" }
-oxrdf = { git = "https://github.com/yamdan/oxigraph.git", branch = "yamdan-canonical-escaping" }
+oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 ```
 
 Then you can use:
