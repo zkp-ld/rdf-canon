@@ -29,8 +29,8 @@ Then you can use:
 ## Example
 
 ```rust
-use oxigraph::io::{DatasetFormat, DatasetParser};
 use oxrdf::Dataset;
+use oxttl::NQuadsParser;
 use rdf_canon::{canonicalize, serialize};
 use std::io::Cursor;
 
@@ -53,17 +53,15 @@ _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 "#;
 
     // get dataset from N-Quads document
-    let parser = DatasetParser::from_format(DatasetFormat::NQuads);
-    let quads = parser
-        .read_quads(Cursor::new(input_doc))
-        .unwrap()
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
+    let quads = NQuadsParser::new()
+        .parse_from_read(Cursor::new(input_doc))
+        .into_iter()
+        .map(|x| x.unwrap());
     let input_dataset = Dataset::from_iter(quads);
 
     // canonicalize the dataset
-    let normalized_dataset = canonicalize(&input_dataset).unwrap();
-    let canonicalized_doc = serialize(normalized_dataset);
+    let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
+    let canonicalized_doc = serialize(canonicalized_dataset);
 
     assert_eq!(canonicalized_doc, expected_canonicalized_doc);
 }
