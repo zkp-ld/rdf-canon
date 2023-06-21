@@ -41,7 +41,7 @@ mod tests {
 
         const BASE_PATH: &str = "tests/rdfc10";
 
-        fn read_nquads(path: &str) -> Option<String> {
+        fn read_nquads_as_string(path: &str) -> Option<String> {
             let path = Path::new(&path);
             let mut file = match File::open(path) {
                 Err(_) => return None,
@@ -71,7 +71,7 @@ mod tests {
             let canonicalized_document = serialize(normalized_dataset);
 
             let output_path = format!("{BASE_PATH}/test{:03}-rdfc10.nq", i);
-            let expected_output = match read_nquads(&output_path) {
+            let expected_output = match read_nquads_as_string(&output_path) {
                 Some(s) => s,
                 None => continue,
             };
