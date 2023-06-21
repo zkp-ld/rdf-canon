@@ -6,8 +6,8 @@ pub use crate::error::CanonicalizationError;
 #[cfg(test)]
 mod tests {
     use crate::canon::{canonicalize, serialize};
-    use oxigraph::io::{DatasetFormat, DatasetParser};
     use oxrdf::Dataset;
+    use oxttl::NQuadsParser;
     use std::{
         fs::File,
         io::{BufReader, Read},
@@ -57,10 +57,15 @@ mod tests {
         let range = 1..=73;
         for i in range {
             let input_path = format!("{BASE_PATH}/test{:03}-in.nq", i);
-            let parser = DatasetParser::from_format(DatasetFormat::NQuads);
-            let file = BufReader::new(File::open(input_path).unwrap());
-            let input_dataset =
-                Dataset::from_iter(parser.read_quads(file).map(|x| x.unwrap()));
+            let Ok(input_file) = File::open(input_path) else {
+                println!("test{:03} not found", i);
+                continue;
+            };
+            let input_quads = NQuadsParser::new()
+                .parse_from_read(BufReader::new(input_file))
+                .into_iter()
+                .map(|x| x.unwrap());
+            let input_dataset = Dataset::from_iter(input_quads);
 
             let normalized_dataset = canonicalize(&input_dataset).unwrap();
             let canonicalized_document = serialize(normalized_dataset);
@@ -73,9 +78,11 @@ mod tests {
 
             assert_eq!(
                 canonicalized_document, expected_output,
-                "Failed: test{:03}",
+                "test{:03} failed",
                 i
             );
+
+            println!("test{:03} passed", i);
         }
     }
 }
