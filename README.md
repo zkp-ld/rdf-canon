@@ -160,6 +160,12 @@ ca:
 
 ## Changelog
 
+### v0.6.0
+
+- Use `oxttl` as a N-Quads parser to avoid the dependency on the whole `oxigraph`
+- Make logger and YamlLayer public for external crates to use them when debugging
+- import the latest-updated test cases from w3c/rdf-canon
+
 ### v0.5.0
 
 - Turn logger into a feature: the logger can now be optionally included in our builds, depending on the requirements of each specific build
