@@ -254,6 +254,41 @@ fn canonicalize_blank_node(
 /// **4.5 Canonicalization Algorithm**
 ///   The canonicalization algorithm converts an input dataset into a normalized dataset.
 ///   This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
+///
+/// ```
+/// use oxrdf::Dataset;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::{canonicalize, serialize};
+/// use std::io::Cursor;
+
+/// let input_doc = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .  # test for canonical N-Quads
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let expected_canonicalized_doc = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
+/// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
+/// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
+/// _:c14n1 <http://example.org/vocab#next> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
+/// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
+/// "#;
+///
+/// let quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input_doc))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let input_dataset = Dataset::from_iter(quads);
+///
+/// let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
+/// let canonicalized_doc = serialize(canonicalized_dataset);
+///
+/// assert_eq!(canonicalized_doc, expected_canonicalized_doc);
+/// ```
 pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, CanonicalizationError> {
     #[cfg(feature = "log")]
     let _span_ca = debug_span!(
