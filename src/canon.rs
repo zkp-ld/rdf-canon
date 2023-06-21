@@ -7,7 +7,10 @@ use oxrdf::{
     Term, TermRef,
 };
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt,
+};
 
 #[cfg(feature = "log")]
 use tracing::{debug, debug_span};
@@ -180,7 +183,6 @@ impl IdentifierIssuer {
 
 const RECURSION_LIMIT: u8 = 1;
 
-#[derive(Debug)]
 struct RecursionCounter {
     counter: HashMap<String, u8>,
     limit: u8,
@@ -214,6 +216,15 @@ impl RecursionCounter {
         } else {
             Ok(())
         }
+    }
+}
+
+impl fmt::Debug for RecursionCounter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("")
+            .field("counter", &self.counter)
+            .field("limit", &self.limit)
+            .finish()
     }
 }
 
@@ -508,10 +519,10 @@ pub fn canonicalize_with_limited_recursion(
                 hash_n_degree_quads(&state, n.clone(), &temporary_issuer, &mut recursion_counter)?;
 
             #[cfg(feature = "log")]
-            span_ca_5_2_4.exit();
+            debug!("recursion_counter: {:?}", recursion_counter);
 
             #[cfg(feature = "log")]
-            debug!("recursion_counter: {:?}", recursion_counter);
+            span_ca_5_2_4.exit();
 
             hash_path_list.push(result);
         }
