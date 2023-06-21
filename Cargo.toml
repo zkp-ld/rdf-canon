@@ -20,4 +20,4 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 
 [features]
-log = []
+log = [ "tracing-subscriber" ]

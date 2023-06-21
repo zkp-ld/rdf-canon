@@ -1,7 +1,11 @@
 pub mod canon;
 pub mod error;
+#[cfg(feature = "log")]
+pub mod logger;
 pub use crate::canon::{canonicalize, serialize};
 pub use crate::error::CanonicalizationError;
+#[cfg(feature = "log")]
+pub use crate::logger::YamlLayer;
 
 #[cfg(test)]
 mod tests {
@@ -15,13 +19,11 @@ mod tests {
     };
 
     #[cfg(feature = "log")]
+    use crate::logger::YamlLayer;
+    #[cfg(feature = "log")]
     use tracing::metadata::LevelFilter;
     #[cfg(feature = "log")]
     use tracing_subscriber::prelude::*;
-    #[cfg(feature = "log")]
-    mod logger;
-    #[cfg(feature = "log")]
-    use logger::CustomLayer;
 
     #[cfg(feature = "log")]
     const INDENT_WIDTH: usize = 2;
@@ -29,7 +31,7 @@ mod tests {
     #[cfg(feature = "log")]
     fn init_logger(level: tracing::Level) {
         let _ = tracing_subscriber::registry()
-            .with(CustomLayer::new(INDENT_WIDTH).with_filter(LevelFilter::from_level(level)))
+            .with(YamlLayer::new(INDENT_WIDTH).with_filter(LevelFilter::from_level(level)))
             .try_init();
     }
 

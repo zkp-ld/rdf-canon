@@ -1,17 +1,17 @@
 use tracing::{field::Visit, span, Subscriber};
 use tracing_subscriber::{registry::LookupSpan, Layer};
 
-pub struct CustomLayer {
+pub struct YamlLayer {
     indent_width: usize,
 }
 
-impl CustomLayer {
-    pub fn new(indent_width: usize) -> CustomLayer {
-        CustomLayer { indent_width }
+impl YamlLayer {
+    pub fn new(indent_width: usize) -> YamlLayer {
+        YamlLayer { indent_width }
     }
 }
 
-impl<S> Layer<S> for CustomLayer
+impl<S> Layer<S> for YamlLayer
 where
     S: Subscriber,
     for<'lookup> S: LookupSpan<'lookup>,
