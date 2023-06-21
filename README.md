@@ -7,7 +7,7 @@ The purpose of this implementation is only to understand and evaluate the specif
 
 ## Prerequisites
 
-- [Oxigraph and Oxrdf (forked)](https://github.com/yamdan/oxigraph): A modified version with changes to the Literal generation section to produce Canonical N-Triples and N-Quads. A Pull Request is planned to be submitted to the original repository.
+- [Oxrdf and Oxttl (from `next` branch of Oxigraph)](https://github.com/oxigraph/oxigraph/tree/next): We use Oxttl to parse N-Quads and Oxrdf to deal with RDF data structures. Note that Oxttl is currently only available in `next` branch of Oxigraph; we will update it as soon as Oxigraph releases v0.4.
 - libclang: Required for building Oxigraph (`sudo apt install libclang-dev` for debian/ubuntu user if necessary)
 
 ## Usage
