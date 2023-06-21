@@ -8,7 +8,6 @@ The purpose of this implementation is only to understand and evaluate the specif
 ## Prerequisites
 
 - [Oxrdf and Oxttl (from `next` branch of Oxigraph)](https://github.com/oxigraph/oxigraph/tree/next): We use Oxttl to parse N-Quads and Oxrdf to deal with RDF data structures. Note that Oxttl is currently only available in `next` branch of Oxigraph; we will update it as soon as Oxigraph releases v0.4.
-- libclang: Required for building Oxigraph (`sudo apt install libclang-dev` for debian/ubuntu user if necessary)
 
 ## Usage
 
