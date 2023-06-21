@@ -67,9 +67,97 @@ _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 }
 ```
 
-## Logging feature (for debug)
+## Logging Feature for Debug
 
-Enable `log` feature to get the debug log if you want (See [src/lib.rs](src/lib.rs))
+You can get the YAML-formatted debug log to enable `log` feature.
+
+```rust
+use oxrdf::Dataset;
+use oxttl::NQuadsParser;
+use rdf_canon::{canonicalize, logger::YamlLayer, serialize};
+use std::io::Cursor;
+
+// setup for debug logger
+use tracing::metadata::LevelFilter;
+use tracing_subscriber::prelude::*;
+const INDENT_WIDTH: usize = 2;
+fn init_logger(level: tracing::Level) {
+    let _ = tracing_subscriber::registry()
+        .with(YamlLayer::new(INDENT_WIDTH).with_filter(LevelFilter::from_level(level)))
+        .try_init();
+}
+
+fn main() {
+    // initialize debug logger
+    init_logger(tracing::Level::DEBUG);
+
+    let input_doc = r#"_:e0 <http://example.com/#p1> _:e1 .
+_:e1 <http://example.com/#p2> "Foo" .
+"#;
+    let expected_canonicalized_doc = r#"_:c14n0 <http://example.com/#p1> _:c14n1 .
+_:c14n1 <http://example.com/#p2> "Foo" .
+"#;
+
+    // get dataset from N-Quads document
+    let quads = NQuadsParser::new()
+        .parse_from_read(Cursor::new(input_doc))
+        .into_iter()
+        .map(|x| x.unwrap());
+    let input_dataset = Dataset::from_iter(quads);
+
+    // canonicalize the dataset
+    let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
+    let canonicalized_doc = serialize(canonicalized_dataset);
+
+    assert_eq!(canonicalized_doc, expected_canonicalized_doc);
+}
+```
+
+The above code generates the following debug log:
+
+```yaml
+ca:
+  log point: Entering the canonicalization function (4.5.3).
+  ca.2:
+    log point: Extract quads for each bnode (4.5.3 (2)).
+    Bnode to quads:
+      e0:
+        - _:e0 <http://example.com/#p1> _:e1 .
+      e1:
+        - _:e0 <http://example.com/#p1> _:e1 .
+        - _:e1 <http://example.com/#p2> "Foo" .
+  ca.3:
+    log point: Calculated first degree hashes (4.5.3 (3)).
+    with:
+      - identifier: e0
+        h1dq:
+          log point: Hash First Degree Quads function (4.7.3).
+          nquads:
+            - _:a <http://example.com/#p1> _:z .
+          hash: 24da9a4406b4e66dffa10ad3d4d6dddc388fbf193bb124e865158ef419893957
+      - identifier: e1
+        h1dq:
+          log point: Hash First Degree Quads function (4.7.3).
+          nquads:
+            - _:z <http://example.com/#p1> _:a .
+            - _:a <http://example.com/#p2> "Foo" .
+          hash: a994e40b576809985bc0f389308cd9d552fd7c89d028c163848a6b2d33a8583a
+  ca.4:
+    log point: Create canonical replacements for hashes mapping to a single node (4.5.3 (4)).
+    with:
+      - identifier: e0
+    hash: 24da9a4406b4e66dffa10ad3d4d6dddc388fbf193bb124e865158ef419893957
+    canonical label: c14n0
+      - identifier: e1
+    hash: a994e40b576809985bc0f389308cd9d552fd7c89d028c163848a6b2d33a8583a
+    canonical label: c14n1
+  ca.5:
+    log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5)).
+    with:
+  ca.6:
+    log point: Replace original with canonical labels (4.5.3 (6)).
+    issued identifiers map: {e0: c14n0, e1: c14n1}
+```
 
 ## Changelog
 
