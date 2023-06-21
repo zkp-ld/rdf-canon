@@ -11,11 +11,13 @@ base16ct = "0.2"
 indexmap = "1.9"
 itertools = "0.10"
 oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
-oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", optional = true }
+
+[dev-dependencies]
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 
 [features]
 log = ["tracing-subscriber"]
