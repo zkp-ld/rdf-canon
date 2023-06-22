@@ -181,23 +181,23 @@ impl IdentifierIssuer {
     }
 }
 
-const DEFAULT_RECURSION_LIMIT: usize = 1;
+const DEFAULT_ITERATION_LIMIT: usize = 1;
 
-struct RecursionCounter {
+struct IterationCounter {
     counter: HashMap<String, usize>,
     limit: usize,
 }
 
-impl Default for RecursionCounter {
+impl Default for IterationCounter {
     fn default() -> Self {
         Self {
             counter: Default::default(),
-            limit: DEFAULT_RECURSION_LIMIT,
+            limit: DEFAULT_ITERATION_LIMIT,
         }
     }
 }
 
-impl RecursionCounter {
+impl IterationCounter {
     fn new(max_iterations: usize) -> Self {
         Self {
             counter: Default::default(),
@@ -212,14 +212,14 @@ impl RecursionCounter {
             .and_modify(|c| *c += 1)
             .or_insert(1);
         if current > &mut self.limit {
-            Err(CanonicalizationError::RecursionLimitExceeded)
+            Err(CanonicalizationError::IterationLimitExceeded)
         } else {
             Ok(())
         }
     }
 }
 
-impl fmt::Debug for RecursionCounter {
+impl fmt::Debug for IterationCounter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("")
             .field("counter", &self.counter)
@@ -340,12 +340,12 @@ fn canonicalize_blank_node(
 /// assert_eq!(canonicalized_doc, expected_canonicalized_doc);
 /// ```
 pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, CanonicalizationError> {
-    canonicalize_with_limited_recursion(input_dataset, None)
+    canonicalize_with_limited_iteration(input_dataset, None)
 }
 
-pub fn canonicalize_with_limited_recursion(
+pub fn canonicalize_with_limited_iteration(
     input_dataset: &Dataset,
-    recursion_limit: Option<usize>,
+    iteration_limit: Option<usize>,
 ) -> Result<Dataset, CanonicalizationError> {
     #[cfg(feature = "log")]
     let _span_ca = debug_span!(
@@ -511,15 +511,15 @@ pub fn canonicalize_with_limited_recursion(
             #[cfg(feature = "log")]
             let span_ca_5_2_4 = debug_span!("", indent = 1).entered();
 
-            let mut recursion_counter = match recursion_limit {
-                Some(limit) => RecursionCounter::new(limit),
-                None => RecursionCounter::default(),
+            let mut iteration_counter = match iteration_limit {
+                Some(limit) => IterationCounter::new(limit),
+                None => IterationCounter::default(),
             };
             let result =
-                hash_n_degree_quads(&state, n.clone(), &temporary_issuer, &mut recursion_counter)?;
+                hash_n_degree_quads(&state, n.clone(), &temporary_issuer, &mut iteration_counter)?;
 
             #[cfg(feature = "log")]
-            debug!("recursion_counter: {:?}", recursion_counter);
+            debug!("iteration_counter: {:?}", iteration_counter);
 
             #[cfg(feature = "log")]
             span_ca_5_2_4.exit();
@@ -837,7 +837,7 @@ fn hash_n_degree_quads(
     state: &CanonicalizationState,
     identifier: String,
     path_identifier_issuer: &IdentifierIssuer,
-    recursion_counter: &mut RecursionCounter,
+    iteration_counter: &mut IterationCounter,
 ) -> Result<HashNDegreeQuadsResult, CanonicalizationError> {
     #[cfg(feature = "log")]
     let _span_hndq = debug_span!(
@@ -854,12 +854,12 @@ fn hash_n_degree_quads(
         );
     }
 
-    // check recursion limit per identifier
+    // check iteration limit per identifier
     #[cfg(feature = "log")]
-    debug!("recursion_counter(before): {:?}", recursion_counter);
-    recursion_counter.add(&identifier)?;
+    debug!("iteration_counter(before): {:?}", iteration_counter);
+    iteration_counter.add(&identifier)?;
     #[cfg(feature = "log")]
-    debug!("recursion_counter(after): {:?}", recursion_counter);
+    debug!("iteration_counter(after): {:?}", iteration_counter);
 
     let mut issuer = path_identifier_issuer.clone();
 
@@ -1162,7 +1162,7 @@ fn hash_n_degree_quads(
                 let span_hndq_5_4_5_1 = debug_span!("", indent = 1).entered();
 
                 let result =
-                    hash_n_degree_quads(state, related.clone(), &issuer_copy, recursion_counter)?;
+                    hash_n_degree_quads(state, related.clone(), &issuer_copy, iteration_counter)?;
 
                 #[cfg(feature = "log")]
                 span_hndq_5_4_5_1.exit();
@@ -1520,12 +1520,12 @@ mod tests {
                 }
                 let mut temporary_issuer = IdentifierIssuer::new("b");
                 temporary_issuer.issue(n);
-                let mut recursion_counter = RecursionCounter::default();
+                let mut iteration_counter = IterationCounter::default();
                 let result = hash_n_degree_quads(
                     &state,
                     n.clone(),
                     &temporary_issuer,
-                    &mut recursion_counter,
+                    &mut iteration_counter,
                 )
                 .unwrap();
                 hash_path_list.push(result);
