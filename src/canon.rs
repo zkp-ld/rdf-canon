@@ -181,24 +181,24 @@ impl IdentifierIssuer {
     }
 }
 
-const RECURSION_LIMIT: u8 = 1;
+const DEFAULT_RECURSION_LIMIT: usize = 1;
 
 struct RecursionCounter {
-    counter: HashMap<String, u8>,
-    limit: u8,
+    counter: HashMap<String, usize>,
+    limit: usize,
 }
 
 impl Default for RecursionCounter {
     fn default() -> Self {
         Self {
             counter: Default::default(),
-            limit: RECURSION_LIMIT,
+            limit: DEFAULT_RECURSION_LIMIT,
         }
     }
 }
 
 impl RecursionCounter {
-    fn new(max_iterations: u8) -> Self {
+    fn new(max_iterations: usize) -> Self {
         Self {
             counter: Default::default(),
             limit: max_iterations,
@@ -345,7 +345,7 @@ pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, Canonicalization
 
 pub fn canonicalize_with_limited_recursion(
     input_dataset: &Dataset,
-    recursion_limit: Option<u8>,
+    recursion_limit: Option<usize>,
 ) -> Result<Dataset, CanonicalizationError> {
     #[cfg(feature = "log")]
     let _span_ca = debug_span!(
@@ -856,8 +856,10 @@ fn hash_n_degree_quads(
 
     // check recursion limit per identifier
     #[cfg(feature = "log")]
-    debug!("recursion_counter: {:?}", recursion_counter);
+    debug!("recursion_counter(before): {:?}", recursion_counter);
     recursion_counter.add(&identifier)?;
+    #[cfg(feature = "log")]
+    debug!("recursion_counter(after): {:?}", recursion_counter);
 
     let mut issuer = path_identifier_issuer.clone();
 
