@@ -1,4 +1,7 @@
-use crate::error::CanonicalizationError;
+use crate::{
+    counter::{HndqCallCounter, SimpleHndqCallCounter},
+    error::CanonicalizationError,
+};
 use base16ct::lower::encode_str;
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -290,6 +293,22 @@ fn canonicalize_blank_node(
 /// assert_eq!(canonicalized_doc, expected_canonicalized_doc);
 /// ```
 pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, CanonicalizationError> {
+    let hndq_call_counter = SimpleHndqCallCounter::default();
+    canonicalize_with_hndq_call_counter(input_dataset, hndq_call_counter)
+}
+
+pub fn canonicalize_with_call_limit(
+    input_dataset: &Dataset,
+    call_limit: usize,
+) -> Result<Dataset, CanonicalizationError> {
+    let hndq_call_counter = SimpleHndqCallCounter::new(call_limit);
+    canonicalize_with_hndq_call_counter(input_dataset, hndq_call_counter)
+}
+
+pub fn canonicalize_with_hndq_call_counter(
+    input_dataset: &Dataset,
+    mut hndq_call_counter: SimpleHndqCallCounter,
+) -> Result<Dataset, CanonicalizationError> {
     #[cfg(feature = "log")]
     let _span_ca = debug_span!(
         "ca",
@@ -454,7 +473,8 @@ pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, Canonicalization
             #[cfg(feature = "log")]
             let span_ca_5_2_4 = debug_span!("", indent = 1).entered();
 
-            let result = hash_n_degree_quads(&state, n.clone(), &temporary_issuer).unwrap();
+            let result =
+                hash_n_degree_quads(&state, n.clone(), &temporary_issuer, &mut hndq_call_counter)?;
 
             #[cfg(feature = "log")]
             span_ca_5_2_4.exit();
@@ -534,6 +554,8 @@ pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, Canonicalization
         "issued identifiers map: {}",
         state.canonical_issuer.serialize_issued_identifiers_map()
     );
+    #[cfg(feature = "log")]
+    debug!("hndq_call_counter: {:?}", hndq_call_counter);
 
     // 6.1) Create a copy, quad copy, of q and replace any existing blank node identifier n using the
     // canonical identifiers previously issued by canonical issuer.
@@ -772,6 +794,7 @@ fn hash_n_degree_quads(
     state: &CanonicalizationState,
     identifier: String,
     path_identifier_issuer: &IdentifierIssuer,
+    call_counter: &mut SimpleHndqCallCounter,
 ) -> Result<HashNDegreeQuadsResult, CanonicalizationError> {
     #[cfg(feature = "log")]
     let _span_hndq = debug_span!(
@@ -787,6 +810,9 @@ fn hash_n_degree_quads(
             path_identifier_issuer.serialize_issued_identifiers_map()
         );
     }
+
+    // Check call limit and halt if necessary to avoid poison input
+    call_counter.add(&identifier)?;
 
     let mut issuer = path_identifier_issuer.clone();
 
@@ -1088,7 +1114,8 @@ fn hash_n_degree_quads(
                 #[cfg(feature = "log")]
                 let span_hndq_5_4_5_1 = debug_span!("", indent = 1).entered();
 
-                let result = hash_n_degree_quads(state, related.clone(), &issuer_copy)?;
+                let result =
+                    hash_n_degree_quads(state, related.clone(), &issuer_copy, call_counter)?;
 
                 #[cfg(feature = "log")]
                 span_hndq_5_4_5_1.exit();
@@ -1446,7 +1473,14 @@ mod tests {
                 }
                 let mut temporary_issuer = IdentifierIssuer::new("b");
                 temporary_issuer.issue(n);
-                let result = hash_n_degree_quads(&state, n.clone(), &temporary_issuer).unwrap();
+                let mut hndq_call_counter = SimpleHndqCallCounter::default();
+                let result = hash_n_degree_quads(
+                    &state,
+                    n.clone(),
+                    &temporary_issuer,
+                    &mut hndq_call_counter,
+                )
+                .unwrap();
                 hash_path_list.push(result);
             }
             hash_path_list.sort();

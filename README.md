@@ -25,7 +25,7 @@ Then you can use:
 - `rdf_canon::canonicalize` to canonicalize OxRDF `Dataset`, and
 - `rdf_canon::serialize` to serialize the canonicalized `Dataset` into a canonical N-Quads
 
-## Example
+### Example
 
 ```rust
 use oxrdf::Dataset;
@@ -42,7 +42,7 @@ _:e1 <http://example.org/vocab#prev> _:e0 .
 _:e2 <http://example.org/vocab#next> _:e0 .
 _:e2 <http://example.org/vocab#prev> _:e1 .
 "#;
-    let expected_canonicalized_doc = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
+    let expected_doc = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
 _:c14n0 <http://example.org/vocab#next> _:c14n2 .
 _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
 _:c14n1 <http://example.org/vocab#next> _:c14n0 .
@@ -62,11 +62,13 @@ _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
     let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
     let canonicalized_doc = serialize(canonicalized_dataset);
 
-    assert_eq!(canonicalized_doc, expected_canonicalized_doc);
+    assert_eq!(canonicalized_doc, expected_doc);
 }
 ```
 
-## Logging Feature for Debug
+## Advanced
+
+### Logging feature for debug
 
 You can get the YAML-formatted debug log to enable `log` feature.
 
@@ -93,7 +95,7 @@ fn main() {
     let input_doc = r#"_:e0 <http://example.com/#p1> _:e1 .
 _:e1 <http://example.com/#p2> "Foo" .
 "#;
-    let expected_canonicalized_doc = r#"_:c14n0 <http://example.com/#p1> _:c14n1 .
+    let expected_doc = r#"_:c14n0 <http://example.com/#p1> _:c14n1 .
 _:c14n1 <http://example.com/#p2> "Foo" .
 "#;
 
@@ -108,7 +110,7 @@ _:c14n1 <http://example.com/#p2> "Foo" .
     let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
     let canonicalized_doc = serialize(canonicalized_dataset);
 
-    assert_eq!(canonicalized_doc, expected_canonicalized_doc);
+    assert_eq!(canonicalized_doc, expected_doc);
 }
 ```
 
@@ -158,7 +160,23 @@ ca:
     issued identifiers map: {e0: c14n0, e1: c14n1}
 ```
 
+### HNDQ call limit
+
+We have set a call limit on the execution of the Hash N-Degree Quads algorithm to prevent it from running indefinitely due to poison data.
+If users wish to raise or lower this limit, please specify the limit using the `canonicalize_with_call_limit` function as shown below.
+Default limit is set to 4000.
+
+```rust
+    // canonicalize the dataset with call limit 10000
+    let canonicalized_dataset = canonicalize_with_call_limit(&input_dataset, 10000).unwrap();
+    let canonicalized_doc = serialize(canonicalized_dataset);
+```
+
 ## Changelog
+
+### v0.7.0
+
+- Add HNDQ call limit as a countermeasure against poison dataset attack by  restricting the maximum number of calls to the Hash N-Degree Quads (HNDQ) algorithm
 
 ### v0.6.0
 

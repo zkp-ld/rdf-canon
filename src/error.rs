@@ -11,6 +11,8 @@ pub enum CanonicalizationError {
     CanonicalIdentifierNotExist,
     #[error("Parsing blank node identifier failed.")]
     BlankNodeIdParseError,
+    #[error("The number of calls to the Hash N-degree Quads algorithm have exceeded the limit of {0}.")]
+    HndqCallLimitExceeded(usize),
 }
 
 impl From<BlankNodeIdParseError> for CanonicalizationError {
