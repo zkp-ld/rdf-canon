@@ -477,9 +477,6 @@ pub fn canonicalize_with_hndq_call_counter(
                 hash_n_degree_quads(&state, n.clone(), &temporary_issuer, &mut hndq_call_counter)?;
 
             #[cfg(feature = "log")]
-            debug!("hndq_call_counter: {:?}", hndq_call_counter);
-
-            #[cfg(feature = "log")]
             span_ca_5_2_4.exit();
 
             hash_path_list.push(result);
@@ -557,6 +554,8 @@ pub fn canonicalize_with_hndq_call_counter(
         "issued identifiers map: {}",
         state.canonical_issuer.serialize_issued_identifiers_map()
     );
+    #[cfg(feature = "log")]
+    debug!("hndq_call_counter: {:?}", hndq_call_counter);
 
     // 6.1) Create a copy, quad copy, of q and replace any existing blank node identifier n using the
     // canonical identifiers previously issued by canonical issuer.

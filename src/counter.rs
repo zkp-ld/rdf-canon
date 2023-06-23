@@ -50,7 +50,6 @@ impl fmt::Debug for SimpleHndqCallCounter {
         f.debug_struct("")
             .field("counter", &self.counter)
             .field("limit", &self.limit)
-            .field("sum", &self.sum())
             .finish()
     }
 }
