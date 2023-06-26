@@ -9,14 +9,14 @@ edition = "2021"
 [dependencies]
 base16ct = "0.2"
 itertools = "0.10"
-oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
+oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next", version = "0.2.0-alpha.1-dev" }
 sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", optional = true }
 
 [dev-dependencies]
-oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next", version = "0.1.0-alpha.1-dev" }
 
 [features]
 log = ["tracing-subscriber"]
