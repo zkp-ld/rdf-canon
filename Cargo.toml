@@ -8,7 +8,6 @@ edition = "2021"
 
 [dependencies]
 base16ct = "0.2"
-indexmap = "1.9"
 itertools = "0.10"
 oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 sha2 = "0.10"
