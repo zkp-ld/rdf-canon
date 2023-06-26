@@ -229,6 +229,12 @@ ca:
 
 ## Changelog
 
+### v0.8.0
+
+- update algorithm interfaces to support the canonicalized dataset as additional output
+- remove `indexmap` dependency
+- update comments for latest specification changes
+
 ### v0.7.0
 
 - Add HNDQ call limit as a countermeasure against poison dataset attack by  restricting the maximum number of calls to the Hash N-Degree Quads (HNDQ) algorithm
