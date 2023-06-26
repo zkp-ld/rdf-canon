@@ -501,6 +501,7 @@ pub fn canonicalize_with_hndq_call_counter(
             debug!("with:");
         }
 
+        // TODO: check if the `sort()` here is actually in **Unicode code point order**
         hash_path_list.sort();
         for result in hash_path_list.iter() {
             #[cfg(feature = "log")]
@@ -543,8 +544,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     span_ca_5.exit();
 
-    // 6) For each quad, q, in input dataset:
-
+    // 6) Add the issued identifiers map from the canonical issuer to the canonicalized dataset.
     #[cfg(feature = "log")]
     let span_ca_6 = debug_span!(
         "ca.6",
@@ -559,10 +559,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     debug!("hndq_call_counter: {:?}", hndq_call_counter);
 
-    // 6.1) Create a copy, quad copy, of q and replace any existing blank node identifier n using the
-    // canonical identifiers previously issued by canonical issuer.
-    // 6.2) Add quad copy to the normalized dataset.
-    let normalized_dataset: Result<Dataset, CanonicalizationError> = input_dataset
+    let canonicalized_dataset: Result<Dataset, CanonicalizationError> = input_dataset
         .iter()
         .map(|q| canonicalize_quad(q, &state.canonical_issuer))
         .collect();
@@ -570,8 +567,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     span_ca_6.exit();
 
-    // 7) Return the normalized dataset.
-    normalized_dataset
+    canonicalized_dataset
 }
 
 /// **5. Serialization**
