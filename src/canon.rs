@@ -3,14 +3,13 @@ use crate::{
     error::CanonicalizationError,
 };
 use base16ct::lower::encode_str;
-use indexmap::IndexMap;
 use itertools::Itertools;
 use oxrdf::{
     BlankNode, BlankNodeRef, Dataset, GraphName, GraphNameRef, Quad, QuadRef, Subject, SubjectRef,
     Term, TermRef,
 };
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[cfg(feature = "log")]
 use tracing::{debug, debug_span};
@@ -116,12 +115,12 @@ struct IdentifierIssuer {
     ///   identifiers, to prevent issuance of more than one new identifier
     ///   per existing identifier, and to allow blank nodes to be
     ///   reassigned identifiers some time after issuance.
-    issued_identifiers_map: IndexMap<String, String>,
+    issued_identifiers_map: HashMap<String, String>,
 }
 
 impl IdentifierIssuer {
     fn new(identifier_prefix: &str) -> IdentifierIssuer {
-        let issued_identifiers_map = IndexMap::<String, String>::new();
+        let issued_identifiers_map = HashMap::<String, String>::new();
         IdentifierIssuer {
             identifier_prefix: identifier_prefix.to_string(),
             identifier_counter: 0,
@@ -579,9 +578,16 @@ fn canonicalize_with_hndq_call_counter(
             #[cfg(feature = "log")]
             let span_ca_5_3_1 = debug_span!("ca.5.3.1", indent = 2).entered();
 
-            for (existing_identifier, _temporary_identifier) in
-                result.issuer.issued_identifiers_map.iter()
-            {
+            // Retrieve the existing identifiers in the order of the temporarily issued identifiers.
+            let inverted_map: BTreeMap<_, _> = result
+                .issuer
+                .issued_identifiers_map
+                .iter()
+                .map(|(existing_identifier, temporary_identifier)| {
+                    (temporary_identifier, existing_identifier)
+                })
+                .collect();
+            for existing_identifier in inverted_map.into_values() {
                 #[cfg(feature = "log")]
                 debug!("- existing identifier: {}", existing_identifier);
 
