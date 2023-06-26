@@ -579,13 +579,10 @@ fn canonicalize_with_hndq_call_counter(
             let span_ca_5_3_1 = debug_span!("ca.5.3.1", indent = 2).entered();
 
             // Retrieve the existing identifiers in the order of the temporarily issued identifiers.
-            let inverted_map: BTreeMap<_, _> = result
-                .issuer
-                .issued_identifiers_map
+            let temporarily_issued_identifiers_map = &result.issuer.issued_identifiers_map;
+            let inverted_map: BTreeMap<_, _> = temporarily_issued_identifiers_map
                 .iter()
-                .map(|(existing_identifier, temporary_identifier)| {
-                    (temporary_identifier, existing_identifier)
-                })
+                .map(|(k, v)| (v, k))
                 .collect();
             for existing_identifier in inverted_map.into_values() {
                 #[cfg(feature = "log")]
