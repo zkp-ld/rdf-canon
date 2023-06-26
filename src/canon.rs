@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 #[cfg(feature = "log")]
 use tracing::{debug, debug_span};
 
-/// **4.3 Canonicalization State**
+/// **4.2 Canonicalization State**
 struct CanonicalizationState {
     /// **blank node to quads map**
     ///   A map that relates a blank node identifier to the quads
@@ -44,7 +44,7 @@ impl CanonicalizationState {
     }
 
     fn update_blank_node_to_quads_map(&mut self, dataset: &Dataset) {
-        // **4.5.3 Algorithm**
+        // **4.4.3 Algorithm**
         // 2) For every quad Q in input dataset:
         for quad in dataset.iter() {
             // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
@@ -90,8 +90,10 @@ impl CanonicalizationState {
     }
 }
 
-/// **4.4 Blank Node Identifier Issuer State**
-/// During the canonicalization algorithm, it is sometimes necessary to issue new identifiers to blank nodes. The Issue Identifier algorithm uses an identifier issuer to accomplish this task. The information an identifier issuer needs to keep track of is described below.
+/// **4.3 Blank Node Identifier Issuer State**
+/// During the canonicalization algorithm, it is sometimes necessary to issue new identifiers to blank nodes.
+/// The Issue Identifier algorithm uses an identifier issuer to accomplish this task.
+/// The information an identifier issuer needs to keep track of is described below.
 #[derive(PartialEq, Eq, Clone, Debug)]
 struct IdentifierIssuer {
     /// **identifier prefix**
@@ -137,13 +139,13 @@ impl IdentifierIssuer {
             .cloned()
     }
 
-    /// **4.6 Issue Identifier Algorithm**
+    /// **4.5 Issue Identifier Algorithm**
     ///   This algorithm issues a new blank node identifier for a given existing
     ///   blank node identifier. It also updates state information that tracks
     ///   the order in which new blank node identifiers were issued. The order
     ///   of issuance is important for canonically labeling blank nodes that are
     ///   isomorphic to others in the dataset.
-    /// **4.6.2 Algorithm**
+    /// **4.5.2 Algorithm**
     ///   The algorithm takes an identifier issuer I and an existing identifier as
     ///   inputs. The output is a new issued identifier.
     fn issue(&mut self, existing_identifier: &str) -> String {
@@ -254,7 +256,7 @@ fn canonicalize_blank_node(
     }
 }
 
-/// **4.5 Canonicalization Algorithm**
+/// **4.4 Canonicalization Algorithm**
 ///   The canonicalization algorithm converts an input dataset into a normalized dataset.
 ///   This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
 ///
@@ -312,7 +314,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     let _span_ca = debug_span!(
         "ca",
-        message = "log point: Entering the canonicalization function (4.5.3)."
+        message = "log point: Entering the canonicalization function (4.4.3)."
     )
     .entered();
 
@@ -323,7 +325,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     let span_ca_2 = debug_span!(
         "ca.2",
-        message = "log point: Extract quads for each bnode (4.5.3 (2))."
+        message = "log point: Extract quads for each bnode (4.4.3 (2))."
     )
     .entered();
 
@@ -349,7 +351,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     let span_ca_3 = debug_span!(
         "ca.3",
-        message = "log point: Calculated first degree hashes (4.5.3 (3))."
+        message = "log point: Calculated first degree hashes (4.4.3 (3))."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -380,11 +382,11 @@ pub fn canonicalize_with_hndq_call_counter(
     span_ca_3.exit();
 
     // 4) For each hash to identifier list map entry in hash to blank nodes map, code point ordered by hash:
-    // TODO: check if `sort()` here is actually sorting in **Unicode code point order**
+    // TODO: check if the ordering in `BTreeMap` is actually in **Unicode code point order**
     #[cfg(feature = "log")]    
     let span_ca_4 = debug_span!(
         "ca.4",
-        message = "log point: Create canonical replacements for hashes mapping to a single node (4.5.3 (4))."
+        message = "log point: Create canonical replacements for hashes mapping to a single node (4.4.3 (4))."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -423,7 +425,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     let span_ca_5 = debug_span!(
         "ca.5",
-        message = "log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5))."
+        message = "log point: Calculate hashes for identifiers with shared hashes (4.4.3 (5))."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -444,7 +446,7 @@ pub fn canonicalize_with_hndq_call_counter(
         let span_ca_5_2 = debug_span!(
             "ca.5.2",
             message =
-                "log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5.2)).",
+                "log point: Calculate hashes for identifiers with shared hashes (4.4.3 (5.2)).",
             indent = 2
         )
         .entered();
@@ -490,7 +492,7 @@ pub fn canonicalize_with_hndq_call_counter(
         #[cfg(feature = "log")]
         let span_ca_5_3 = debug_span!(
             "ca.5.3",
-            message = "log point: Canonical identifiers for temporary identifiers (4.5.3 (5.3)).",
+            message = "log point: Canonical identifiers for temporary identifiers (4.4.3 (5.3)).",
             indent = 2
         )
         .entered();
@@ -546,7 +548,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     let span_ca_6 = debug_span!(
         "ca.6",
-        message = "log point: Replace original with canonical labels (4.5.3 (6))."
+        message = "log point: Replace original with canonical labels (4.4.3 (6))."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -585,14 +587,13 @@ pub fn serialize(dataset: Dataset) -> String {
         .collect()
 }
 
-/// **4.7 Hash First Degree Quads**
+/// **4.6 Hash First Degree Quads**
 ///   This algorithm calculates a hash for a given blank node across the
 ///   quads in a dataset in which that blank node is a component. If the
 ///   hash uniquely identifies that blank node, no further examination is
 ///   necessary. Otherwise, a hash will be created for the blank node using
-///   the algorithm in 4.9 Hash N-Degree Quads invoked via
-///   4.5 Canonicalization Algorithm.
-/// **4.7.3 Algorithm**
+///   the algorithm in Hash N-Degree Quads invoked via Canonicalization Algorithm.
+/// **4.6.3 Algorithm**
 ///   This algorithm takes the canonicalization state and a reference blank node
 ///   identifier as inputs.
 fn hash_first_degree_quads(
@@ -602,7 +603,7 @@ fn hash_first_degree_quads(
     #[cfg(feature = "log")]
     let _span_h1dq = debug_span!(
         "h1dq",
-        message = "log point: Hash First Degree Quads function (4.7.3)."
+        message = "log point: Hash First Degree Quads function (4.6.3)."
     )
     .entered();
 
@@ -701,7 +702,7 @@ impl HashRelatedBlankNodePosition {
     }
 }
 
-/// **4.8 Hash Related Blank Node**
+/// **4.7 Hash Related Blank Node**
 ///   This algorithm generates a hash for some blank node component of a quad, considering
 ///   its position within that quad. This is used as part of the Hash N-Degree Quads
 ///   algorithm to characterize the blank nodes related to some particular blank node within
@@ -778,14 +779,14 @@ impl Ord for HashNDegreeQuadsResult {
     }
 }
 
-/// **4.9 Hash N-Degree Quads**
+/// **4.8 Hash N-Degree Quads**
 ///   This algorithm calculates a hash for a given blank node across the quads in a dataset
 ///   in which that blank node is a component for which the hash does not uniquely identify
 ///   that blank node. This is done by expanding the search from quads directly referencing
 ///   that blank node (the mention set), to those quads which contain nodes which are also
 ///   components of quads in the mention set, called the gossip path. This process proceeds
 ///   in every greater degrees of indirection until a unique hash is obtained.
-/// **4.9.3 Algorithm**
+/// **4.8.3 Algorithm**
 ///   The inputs to this algorithm are the canonicalization state, the identifier for the
 ///   blank node to recursively hash quads for, and path identifier issuer which is an
 ///   identifier issuer that issues temporary blank node identifiers. The output from this
@@ -799,7 +800,7 @@ fn hash_n_degree_quads(
     #[cfg(feature = "log")]
     let _span_hndq = debug_span!(
         "hndq",
-        message = "log point: Hash N-Degree Quads function (4.9.3)."
+        message = "log point: Hash N-Degree Quads function (4.8.3)."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -824,7 +825,7 @@ fn hash_n_degree_quads(
     #[cfg(feature = "log")]
     let span_hndq_2 = debug_span!(
         "hndq.2",
-        message = "log point: Quads for identifier (4.9.3 (2))."
+        message = "log point: Quads for identifier (4.8.3 (2))."
     )
     .entered();
 
@@ -847,7 +848,7 @@ fn hash_n_degree_quads(
     #[cfg(feature = "log")]
     let span_hndq_3 = debug_span!(
         "hndq.3",
-        message = "log point: Hash N-Degree Quads function (4.9.3 (3))."
+        message = "log point: Hash N-Degree Quads function (4.8.3 (3))."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -859,7 +860,7 @@ fn hash_n_degree_quads(
         #[cfg(feature = "log")]
         let span_hndq_3_1 = debug_span!(
             "hndq.3.1",
-            message = "log point: Hash related bnode component (4.9.3 (3.1)).",
+            message = "log point: Hash related bnode component (4.8.3 (3.1)).",
             indent = 2
         )
         .entered();
@@ -985,7 +986,7 @@ fn hash_n_degree_quads(
     #[cfg(feature = "log")]
     let span_hndq_5 = debug_span!(
         "hndq.5",
-        message = "log point: Hash N-Degree Quads function (4.9.3 (5)), entering loop."
+        message = "log point: Hash N-Degree Quads function (4.8.3 (5)), entering loop."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -1012,7 +1013,7 @@ fn hash_n_degree_quads(
         #[cfg(feature = "log")]
         let span_hndq_5_4 = debug_span!(
             "hndq.5.4",
-            message = "log point: Hash N-Degree Quads function (4.9.3 (5.4)), entering loop.",
+            message = "log point: Hash N-Degree Quads function (4.8.3 (5.4)), entering loop.",
             indent = 2
         )
         .entered();
@@ -1038,7 +1039,7 @@ fn hash_n_degree_quads(
             #[cfg(feature = "log")]
             let span_hndq_5_4_4 = debug_span!(
                 "hndq.5.4.4",
-                message = "log point: Hash N-Degree Quads function (4.9.3 (5.4.4)), entering loop.",
+                message = "log point: Hash N-Degree Quads function (4.8.3 (5.4.4)), entering loop.",
                 indent = 2
             )
             .entered();
@@ -1090,7 +1091,7 @@ fn hash_n_degree_quads(
             #[cfg(feature = "log")]
                 let span_hndq_5_4_5 = debug_span!(
                 "hndq.5.4.5",
-                message = "log point: Hash N-Degree Quads function (4.9.3 (5.4.5)), before possible recursion.",
+                message = "log point: Hash N-Degree Quads function (4.8.3 (5.4.5)), before possible recursion.",
                 indent = 2
             )
             .entered();
@@ -1134,7 +1135,7 @@ fn hash_n_degree_quads(
                 #[cfg(feature="log")]
                 let span_hndq_5_4_5_4 = debug_span!(
                     "hndq.5.4.5.4",
-                    message = "log point: Hash N-Degree Quads function (4.9.3 (5.4.5.4)), combine result of recursion.",
+                    message = "log point: Hash N-Degree Quads function (4.8.3 (5.4.5.4)), combine result of recursion.",
                     indent = 2
                 ).entered();
 
@@ -1182,7 +1183,7 @@ fn hash_n_degree_quads(
         #[cfg(feature = "log")]
         let span_hndq_5_5 = debug_span!(
             "hndq.5.5",
-            message = "log point: Hash N-Degree Quads function (4.9.3 (5.5). End of current loop with Hn hashes.",
+            message = "log point: Hash N-Degree Quads function (4.8.3 (5.5). End of current loop with Hn hashes.",
             indent = 2
         )
         .entered();
@@ -1209,7 +1210,7 @@ fn hash_n_degree_quads(
     #[cfg(feature = "log")]
     let span_hndq_6 = debug_span!(
         "hndq.6",
-        message = "log point: Leaving Hash N-Degree Quads function (4.9.3 (6))."
+        message = "log point: Leaving Hash N-Degree Quads function (4.8.3 (6))."
     )
     .entered();
 
