@@ -4,8 +4,8 @@ pub mod error;
 #[cfg(feature = "log")]
 pub mod logger;
 pub use crate::canon::{
-    canonicalize, canonicalize_and_serialize, canonicalize_and_serialize_with_options,
-    canonicalize_with_options, serialize,
+    canonicalize, canonicalize_with_options, issue, issue_with_options, relabel, serialize,
+    CanonicalizationOptions,
 };
 pub use crate::error::CanonicalizationError;
 #[cfg(feature = "log")]
@@ -13,7 +13,7 @@ pub use crate::logger::YamlLayer;
 
 #[cfg(test)]
 mod tests {
-    use crate::{canonicalize, serialize};
+    use crate::canonicalize;
     use oxrdf::Dataset;
     use oxttl::NQuadsParser;
     use std::{
@@ -73,8 +73,7 @@ mod tests {
                 .map(|x| x.unwrap());
             let input_dataset = Dataset::from_iter(input_quads);
 
-            let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-            let canonicalized_document = serialize(canonicalized_dataset);
+            let canonicalized_document = canonicalize(&input_dataset).unwrap();
 
             let output_path = format!("{BASE_PATH}/test{:03}-rdfc10.nq", i);
             let expected_output = match read_nquads_as_string(&output_path) {
