@@ -56,7 +56,6 @@ let input_dataset = Dataset::from_iter(quads);
 let canonicalized = canonicalize(&input_dataset).unwrap();
 
 assert_eq!(canonicalized, expected);
-}
 ```
 
 ## Advanced Usage
