@@ -246,7 +246,6 @@ pub fn issue_with_options(
 ///
 /// assert_eq!(labeled_dataset, expected);
 /// ```
-
 pub fn relabel(
     input_dataset: &Dataset,
     issued_identifiers_map: &HashMap<String, String>,
@@ -254,6 +253,27 @@ pub fn relabel(
     input_dataset
         .iter()
         .map(|q| relabel_quad(q, issued_identifiers_map))
+        .collect()
+}
+
+/// **5. Serialization**
+///   The serialized canonical form of a canonicalized dataset is an N-Quads document [N-QUADS]
+///   created by representing each quad from the canonicalized dataset in canonical n-quads form,
+///   sorting them into code point order, and concatenating them.
+///   (Note that each canonical N-Quads statement ends with a new line, so no additional separators
+///    are needed in the concatenation.)
+///   The resulting document has a media type of application/n-quads, as described in
+///   C. N-Quads Internet Media Type, File Extension and Macintosh File Type of [N-QUADS].
+///
+///   When serializing quads in canonical n-quads form, components which are blank nodes MUST be
+///   serialized using the canonical label associated with each blank node from the issued
+///   identifiers map component of the canonicalized dataset.
+pub fn serialize(dataset: &Dataset) -> String {
+    let mut ordered_dataset: Vec<QuadRef> = dataset.iter().collect();
+    ordered_dataset.sort_by_cached_key(|q| q.to_string());
+    ordered_dataset
+        .iter()
+        .map(|q| q.to_string() + " .\n")
         .collect()
 }
 
@@ -773,27 +793,6 @@ fn canonicalize_core(
     span_ca_6.exit();
 
     Ok(state.canonical_issuer.issued_identifiers_map)
-}
-
-/// **5. Serialization**
-///   The serialized canonical form of a canonicalized dataset is an N-Quads document [N-QUADS]
-///   created by representing each quad from the canonicalized dataset in canonical n-quads form,
-///   sorting them into code point order, and concatenating them.
-///   (Note that each canonical N-Quads statement ends with a new line, so no additional separators
-///    are needed in the concatenation.)
-///   The resulting document has a media type of application/n-quads, as described in
-///   C. N-Quads Internet Media Type, File Extension and Macintosh File Type of [N-QUADS].
-///
-///   When serializing quads in canonical n-quads form, components which are blank nodes MUST be
-///   serialized using the canonical label associated with each blank node from the issued
-///   identifiers map component of the canonicalized dataset.
-pub fn serialize(dataset: &Dataset) -> String {
-    let mut ordered_dataset: Vec<QuadRef> = dataset.iter().collect();
-    ordered_dataset.sort_by_cached_key(|q| q.to_string());
-    ordered_dataset
-        .iter()
-        .map(|q| q.to_string() + " .\n")
-        .collect()
 }
 
 /// **4.6 Hash First Degree Quads**
