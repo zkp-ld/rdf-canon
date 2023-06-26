@@ -3,19 +3,281 @@ use crate::{
     error::CanonicalizationError,
 };
 use base16ct::lower::encode_str;
-use indexmap::IndexMap;
 use itertools::Itertools;
 use oxrdf::{
     BlankNode, BlankNodeRef, Dataset, GraphName, GraphNameRef, Quad, QuadRef, Subject, SubjectRef,
     Term, TermRef,
 };
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[cfg(feature = "log")]
 use tracing::{debug, debug_span};
 
-/// **4.3 Canonicalization State**
+/// Returns the serialized canonical form of the canonicalized dataset,
+/// where any blank nodes in the input dataset are assigned deterministic identifiers.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::Dataset;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::canonicalize;
+/// use std::io::Cursor;
+
+/// let input = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let expected = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
+/// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
+/// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
+/// _:c14n1 <http://example.org/vocab#next> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
+/// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
+/// "#;
+///
+/// let quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let input_dataset = Dataset::from_iter(quads);
+/// let canonicalized = canonicalize(&input_dataset).unwrap();
+///
+/// assert_eq!(canonicalized, expected);
+/// ```
+pub fn canonicalize(input_dataset: &Dataset) -> Result<String, CanonicalizationError> {
+    let options = CanonicalizationOptions::default();
+    canonicalize_with_options(input_dataset, &options)
+}
+
+#[derive(Default)]
+pub struct CanonicalizationOptions {
+    pub hndq_call_limit: Option<usize>,
+}
+
+/// Given some options (e.g., call limit),
+/// returns the serialized canonical form of the canonicalized dataset,
+/// where any blank nodes in the input dataset are assigned deterministic identifiers.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::Dataset;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::{canonicalize_with_options, CanonicalizationOptions};
+/// use std::io::Cursor;
+
+/// let input = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let expected = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
+/// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
+/// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
+/// _:c14n1 <http://example.org/vocab#next> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
+/// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
+/// "#;
+///
+/// let quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let input_dataset = Dataset::from_iter(quads);
+/// let options = CanonicalizationOptions {
+///     hndq_call_limit: Some(10000),
+/// };
+/// let canonicalized = canonicalize_with_options(&input_dataset, &options).unwrap();
+///
+/// assert_eq!(canonicalized, expected);
+/// ```
+pub fn canonicalize_with_options(
+    input_dataset: &Dataset,
+    options: &CanonicalizationOptions,
+) -> Result<String, CanonicalizationError> {
+    let issued_identifiers_map = issue_with_options(input_dataset, options)?;
+    let relabeled_dataset = relabel(input_dataset, &issued_identifiers_map)?;
+    Ok(serialize(&relabeled_dataset))
+}
+
+/// Assigns deterministic identifiers to any blank nodes in the input dataset
+/// and returns the assignment result as a map.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::Dataset;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::issue;
+/// use std::collections::HashMap;
+/// use std::io::Cursor;
+///
+/// let input = r#"
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let expected = HashMap::from([
+///     ("e0".to_string(), "c14n0".to_string()),
+///     ("e1".to_string(), "c14n2".to_string()),
+///     ("e2".to_string(), "c14n1".to_string()),
+/// ]);
+///
+/// let quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let input_dataset = Dataset::from_iter(quads);
+/// let issued_identifiers_map = issue(&input_dataset).unwrap();
+///
+/// assert_eq!(issued_identifiers_map, expected);
+/// ```
+pub fn issue(input_dataset: &Dataset) -> Result<HashMap<String, String>, CanonicalizationError> {
+    let options = CanonicalizationOptions::default();
+    issue_with_options(input_dataset, &options)
+}
+
+/// Given some options (e.g., call limit),
+/// assigns deterministic identifiers to any blank nodes in the input dataset
+/// and returns the assignment result as a map.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::Dataset;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::{issue_with_options, CanonicalizationOptions};
+/// use std::collections::HashMap;
+/// use std::io::Cursor;
+///
+/// let input = r#"
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let expected = HashMap::from([
+///     ("e0".to_string(), "c14n0".to_string()),
+///     ("e1".to_string(), "c14n2".to_string()),
+///     ("e2".to_string(), "c14n1".to_string()),
+/// ]);
+///
+/// let quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let input_dataset = Dataset::from_iter(quads);
+/// let options = CanonicalizationOptions {
+///     hndq_call_limit: Some(10000),
+/// };
+///
+/// let issued_identifiers_map = issue_with_options(&input_dataset, &options).unwrap();
+///
+/// assert_eq!(issued_identifiers_map, expected);
+/// ```
+pub fn issue_with_options(
+    input_dataset: &Dataset,
+    options: &CanonicalizationOptions,
+) -> Result<HashMap<String, String>, CanonicalizationError> {
+    let hndq_call_counter = SimpleHndqCallCounter::new(options.hndq_call_limit);
+    canonicalize_core(input_dataset, hndq_call_counter)
+}
+
+/// Re-label blank node identifiers in the input dataset according to the issued identifiers map.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::Dataset;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::relabel;
+/// use std::collections::HashMap;
+/// use std::io::Cursor;
+///
+/// let input_doc = r#"
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let issued_identifiers_map = HashMap::from([
+///     ("e0".to_string(), "c14n0".to_string()),
+///     ("e1".to_string(), "c14n2".to_string()),
+///     ("e2".to_string(), "c14n1".to_string()),
+/// ]);
+/// let expected_doc = r#"
+/// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
+/// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#next> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
+/// "#;
+///
+/// let quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input_doc))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let input_dataset = Dataset::from_iter(quads);
+/// let labeled_dataset = relabel(&input_dataset, &issued_identifiers_map).unwrap();
+/// let quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(expected_doc))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let expected = Dataset::from_iter(quads);
+///
+/// assert_eq!(labeled_dataset, expected);
+/// ```
+pub fn relabel(
+    input_dataset: &Dataset,
+    issued_identifiers_map: &HashMap<String, String>,
+) -> Result<Dataset, CanonicalizationError> {
+    input_dataset
+        .iter()
+        .map(|q| relabel_quad(q, issued_identifiers_map))
+        .collect()
+}
+
+/// **5. Serialization**
+///   The serialized canonical form of a canonicalized dataset is an N-Quads document [N-QUADS]
+///   created by representing each quad from the canonicalized dataset in canonical n-quads form,
+///   sorting them into code point order, and concatenating them.
+///   (Note that each canonical N-Quads statement ends with a new line, so no additional separators
+///    are needed in the concatenation.)
+///   The resulting document has a media type of application/n-quads, as described in
+///   C. N-Quads Internet Media Type, File Extension and Macintosh File Type of [N-QUADS].
+///
+///   When serializing quads in canonical n-quads form, components which are blank nodes MUST be
+///   serialized using the canonical label associated with each blank node from the issued
+///   identifiers map component of the canonicalized dataset.
+pub fn serialize(dataset: &Dataset) -> String {
+    let mut ordered_dataset: Vec<QuadRef> = dataset.iter().collect();
+    ordered_dataset.sort_by_cached_key(|q| q.to_string());
+    ordered_dataset
+        .iter()
+        .map(|q| q.to_string() + " .\n")
+        .collect()
+}
+
+/// **4.2 Canonicalization State**
 struct CanonicalizationState {
     /// **blank node to quads map**
     ///   A map that relates a blank node identifier to the quads
@@ -44,7 +306,7 @@ impl CanonicalizationState {
     }
 
     fn update_blank_node_to_quads_map(&mut self, dataset: &Dataset) {
-        // **4.5.3 Algorithm**
+        // **4.4.3 Algorithm**
         // 2) For every quad Q in input dataset:
         for quad in dataset.iter() {
             // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
@@ -90,8 +352,10 @@ impl CanonicalizationState {
     }
 }
 
-/// **4.4 Blank Node Identifier Issuer State**
-/// During the canonicalization algorithm, it is sometimes necessary to issue new identifiers to blank nodes. The Issue Identifier algorithm uses an identifier issuer to accomplish this task. The information an identifier issuer needs to keep track of is described below.
+/// **4.3 Blank Node Identifier Issuer State**
+/// During the canonicalization algorithm, it is sometimes necessary to issue new identifiers to blank nodes.
+/// The Issue Identifier algorithm uses an identifier issuer to accomplish this task.
+/// The information an identifier issuer needs to keep track of is described below.
 #[derive(PartialEq, Eq, Clone, Debug)]
 struct IdentifierIssuer {
     /// **identifier prefix**
@@ -114,12 +378,12 @@ struct IdentifierIssuer {
     ///   identifiers, to prevent issuance of more than one new identifier
     ///   per existing identifier, and to allow blank nodes to be
     ///   reassigned identifiers some time after issuance.
-    issued_identifiers_map: IndexMap<String, String>,
+    issued_identifiers_map: HashMap<String, String>,
 }
 
 impl IdentifierIssuer {
     fn new(identifier_prefix: &str) -> IdentifierIssuer {
-        let issued_identifiers_map = IndexMap::<String, String>::new();
+        let issued_identifiers_map = HashMap::<String, String>::new();
         IdentifierIssuer {
             identifier_prefix: identifier_prefix.to_string(),
             identifier_counter: 0,
@@ -137,13 +401,13 @@ impl IdentifierIssuer {
             .cloned()
     }
 
-    /// **4.6 Issue Identifier Algorithm**
+    /// **4.5 Issue Identifier Algorithm**
     ///   This algorithm issues a new blank node identifier for a given existing
     ///   blank node identifier. It also updates state information that tracks
     ///   the order in which new blank node identifiers were issued. The order
     ///   of issuance is important for canonically labeling blank nodes that are
     ///   isomorphic to others in the dataset.
-    /// **4.6.2 Algorithm**
+    /// **4.5.2 Algorithm**
     ///   The algorithm takes an identifier issuer I and an existing identifier as
     ///   inputs. The output is a new issued identifier.
     fn issue(&mut self, existing_identifier: &str) -> String {
@@ -198,121 +462,85 @@ fn hash(data: impl AsRef<[u8]>) -> Result<String, CanonicalizationError> {
     }
 }
 
-fn canonicalize_quad(q: QuadRef, issuer: &IdentifierIssuer) -> Result<Quad, CanonicalizationError> {
+fn relabel_quad(
+    q: QuadRef,
+    issued_identifiers_map: &HashMap<String, String>,
+) -> Result<Quad, CanonicalizationError> {
     Ok(Quad::new(
-        canonicalize_subject(q.subject, issuer)?,
+        relabel_subject(q.subject, issued_identifiers_map)?,
         q.predicate,
-        canonicalize_term(q.object, issuer)?,
-        canonicalize_graph_name(q.graph_name, issuer)?,
+        relabel_term(q.object, issued_identifiers_map)?,
+        relabel_graph_name(q.graph_name, issued_identifiers_map)?,
     ))
 }
 
-fn canonicalize_subject(
+fn relabel_subject(
     s: SubjectRef,
-    issuer: &IdentifierIssuer,
+    issued_identifiers_map: &HashMap<String, String>,
 ) -> Result<Subject, CanonicalizationError> {
     match s {
-        SubjectRef::BlankNode(blank_node) => match canonicalize_blank_node(blank_node, issuer) {
-            Ok(canonicalized_blank_node) => Ok(Subject::BlankNode(canonicalized_blank_node)),
-            Err(e) => Err(e),
-        },
+        SubjectRef::BlankNode(blank_node) => {
+            match relabel_blank_node(blank_node, issued_identifiers_map) {
+                Ok(canonicalized_blank_node) => Ok(Subject::BlankNode(canonicalized_blank_node)),
+                Err(e) => Err(e),
+            }
+        }
         _ => Ok(s.into()),
     }
 }
 
-fn canonicalize_term(o: TermRef, issuer: &IdentifierIssuer) -> Result<Term, CanonicalizationError> {
+fn relabel_term(
+    o: TermRef,
+    issued_identifiers_map: &HashMap<String, String>,
+) -> Result<Term, CanonicalizationError> {
     match o {
-        TermRef::BlankNode(blank_node) => match canonicalize_blank_node(blank_node, issuer) {
-            Ok(canonicalized_blank_node) => Ok(Term::BlankNode(canonicalized_blank_node)),
-            Err(e) => Err(e),
-        },
+        TermRef::BlankNode(blank_node) => {
+            match relabel_blank_node(blank_node, issued_identifiers_map) {
+                Ok(canonicalized_blank_node) => Ok(Term::BlankNode(canonicalized_blank_node)),
+                Err(e) => Err(e),
+            }
+        }
         _ => Ok(o.into()),
     }
 }
 
-fn canonicalize_graph_name(
+fn relabel_graph_name(
     g: GraphNameRef,
-    issuer: &IdentifierIssuer,
+    issued_identifiers_map: &HashMap<String, String>,
 ) -> Result<GraphName, CanonicalizationError> {
     match g {
-        GraphNameRef::BlankNode(blank_node) => match canonicalize_blank_node(blank_node, issuer) {
-            Ok(canonicalized_blank_node) => Ok(GraphName::BlankNode(canonicalized_blank_node)),
-            Err(e) => Err(e),
-        },
+        GraphNameRef::BlankNode(blank_node) => {
+            match relabel_blank_node(blank_node, issued_identifiers_map) {
+                Ok(canonicalized_blank_node) => Ok(GraphName::BlankNode(canonicalized_blank_node)),
+                Err(e) => Err(e),
+            }
+        }
         _ => Ok(g.into()),
     }
 }
 
-fn canonicalize_blank_node(
+fn relabel_blank_node(
     b: BlankNodeRef,
-    issuer: &IdentifierIssuer,
+    issued_identifiers_map: &HashMap<String, String>,
 ) -> Result<BlankNode, CanonicalizationError> {
-    let canonical_identifier = issuer.get(b.as_str());
+    let canonical_identifier = issued_identifiers_map.get(b.as_str());
     match canonical_identifier {
         Some(id) => Ok(BlankNode::new(id)?),
         None => Err(CanonicalizationError::CanonicalIdentifierNotExist),
     }
 }
 
-/// **4.5 Canonicalization Algorithm**
-///   The canonicalization algorithm converts an input dataset into a normalized dataset.
-///   This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
-///
-/// ```
-/// use oxrdf::Dataset;
-/// use oxttl::NQuadsParser;
-/// use rdf_canon::{canonicalize, serialize};
-/// use std::io::Cursor;
-
-/// let input_doc = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .  # test for canonical N-Quads
-/// _:e0 <http://example.org/vocab#next> _:e1 .
-/// _:e0 <http://example.org/vocab#prev> _:e2 .
-/// _:e1 <http://example.org/vocab#next> _:e2 .
-/// _:e1 <http://example.org/vocab#prev> _:e0 .
-/// _:e2 <http://example.org/vocab#next> _:e0 .
-/// _:e2 <http://example.org/vocab#prev> _:e1 .
-/// "#;
-/// let expected_canonicalized_doc = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
-/// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
-/// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
-/// _:c14n1 <http://example.org/vocab#next> _:c14n0 .
-/// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
-/// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
-/// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
-/// "#;
-///
-/// let quads = NQuadsParser::new()
-///     .parse_from_read(Cursor::new(input_doc))
-///     .into_iter()
-///     .map(|x| x.unwrap());
-/// let input_dataset = Dataset::from_iter(quads);
-///
-/// let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-/// let canonicalized_doc = serialize(canonicalized_dataset);
-///
-/// assert_eq!(canonicalized_doc, expected_canonicalized_doc);
-/// ```
-pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, CanonicalizationError> {
-    let hndq_call_counter = SimpleHndqCallCounter::default();
-    canonicalize_with_hndq_call_counter(input_dataset, hndq_call_counter)
-}
-
-pub fn canonicalize_with_call_limit(
-    input_dataset: &Dataset,
-    call_limit: usize,
-) -> Result<Dataset, CanonicalizationError> {
-    let hndq_call_counter = SimpleHndqCallCounter::new(call_limit);
-    canonicalize_with_hndq_call_counter(input_dataset, hndq_call_counter)
-}
-
-pub fn canonicalize_with_hndq_call_counter(
+/// **4.4 Canonicalization Algorithm**
+/// The canonicalization algorithm converts an input dataset into a canonicalized dataset.
+/// This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
+fn canonicalize_core(
     input_dataset: &Dataset,
     mut hndq_call_counter: SimpleHndqCallCounter,
-) -> Result<Dataset, CanonicalizationError> {
+) -> Result<HashMap<String, String>, CanonicalizationError> {
     #[cfg(feature = "log")]
     let _span_ca = debug_span!(
         "ca",
-        message = "log point: Entering the canonicalization function (4.5.3)."
+        message = "log point: Entering the canonicalization function (4.4.3)."
     )
     .entered();
 
@@ -323,7 +551,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     let span_ca_2 = debug_span!(
         "ca.2",
-        message = "log point: Extract quads for each bnode (4.5.3 (2))."
+        message = "log point: Extract quads for each bnode (4.4.3 (2))."
     )
     .entered();
 
@@ -349,7 +577,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     let span_ca_3 = debug_span!(
         "ca.3",
-        message = "log point: Calculated first degree hashes (4.5.3 (3))."
+        message = "log point: Calculated first degree hashes (4.4.3 (3))."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -380,11 +608,11 @@ pub fn canonicalize_with_hndq_call_counter(
     span_ca_3.exit();
 
     // 4) For each hash to identifier list map entry in hash to blank nodes map, code point ordered by hash:
-    // TODO: check if `sort()` here is actually sorting in **Unicode code point order**
+    // TODO: check if the ordering in `BTreeMap` is actually in **Unicode code point order**
     #[cfg(feature = "log")]    
     let span_ca_4 = debug_span!(
         "ca.4",
-        message = "log point: Create canonical replacements for hashes mapping to a single node (4.5.3 (4))."
+        message = "log point: Create canonical replacements for hashes mapping to a single node (4.4.3 (4))."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -423,7 +651,7 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     let span_ca_5 = debug_span!(
         "ca.5",
-        message = "log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5))."
+        message = "log point: Calculate hashes for identifiers with shared hashes (4.4.3 (5))."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -444,7 +672,7 @@ pub fn canonicalize_with_hndq_call_counter(
         let span_ca_5_2 = debug_span!(
             "ca.5.2",
             message =
-                "log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5.2)).",
+                "log point: Calculate hashes for identifiers with shared hashes (4.4.3 (5.2)).",
             indent = 2
         )
         .entered();
@@ -490,7 +718,7 @@ pub fn canonicalize_with_hndq_call_counter(
         #[cfg(feature = "log")]
         let span_ca_5_3 = debug_span!(
             "ca.5.3",
-            message = "log point: Canonical identifiers for temporary identifiers (4.5.3 (5.3)).",
+            message = "log point: Canonical identifiers for temporary identifiers (4.4.3 (5.3)).",
             indent = 2
         )
         .entered();
@@ -499,6 +727,7 @@ pub fn canonicalize_with_hndq_call_counter(
             debug!("with:");
         }
 
+        // TODO: check if the `sort()` here is actually in **Unicode code point order**
         hash_path_list.sort();
         for result in hash_path_list.iter() {
             #[cfg(feature = "log")]
@@ -518,9 +747,13 @@ pub fn canonicalize_with_hndq_call_counter(
             #[cfg(feature = "log")]
             let span_ca_5_3_1 = debug_span!("ca.5.3.1", indent = 2).entered();
 
-            for (existing_identifier, _temporary_identifier) in
-                result.issuer.issued_identifiers_map.iter()
-            {
+            // Retrieve the existing identifiers in the order of the temporarily issued identifiers.
+            let temporarily_issued_identifiers_map = &result.issuer.issued_identifiers_map;
+            let inverted_map: BTreeMap<_, _> = temporarily_issued_identifiers_map
+                .iter()
+                .map(|(k, v)| (v, k))
+                .collect();
+            for existing_identifier in inverted_map.into_values() {
                 #[cfg(feature = "log")]
                 debug!("- existing identifier: {}", existing_identifier);
 
@@ -541,12 +774,11 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     span_ca_5.exit();
 
-    // 6) For each quad, q, in input dataset:
-
+    // 6) Add the issued identifiers map from the canonical issuer to the canonicalized dataset.
     #[cfg(feature = "log")]
     let span_ca_6 = debug_span!(
         "ca.6",
-        message = "log point: Replace original with canonical labels (4.5.3 (6))."
+        message = "log point: Replace original with canonical labels (4.4.3 (6))."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -557,42 +789,19 @@ pub fn canonicalize_with_hndq_call_counter(
     #[cfg(feature = "log")]
     debug!("hndq_call_counter: {:?}", hndq_call_counter);
 
-    // 6.1) Create a copy, quad copy, of q and replace any existing blank node identifier n using the
-    // canonical identifiers previously issued by canonical issuer.
-    // 6.2) Add quad copy to the normalized dataset.
-    let normalized_dataset: Result<Dataset, CanonicalizationError> = input_dataset
-        .iter()
-        .map(|q| canonicalize_quad(q, &state.canonical_issuer))
-        .collect();
-
     #[cfg(feature = "log")]
     span_ca_6.exit();
 
-    // 7) Return the normalized dataset.
-    normalized_dataset
+    Ok(state.canonical_issuer.issued_identifiers_map)
 }
 
-/// **5. Serialization**
-///   The serialized canonical form of a normalized dataset is an N-Quads document [N-QUADS]
-///   created by representing each quad from the normalized dataset in canonical n-quads form,
-///   sorting them into code point order, and concatenating them.
-pub fn serialize(dataset: Dataset) -> String {
-    let mut ordered_dataset: Vec<QuadRef> = dataset.iter().collect();
-    ordered_dataset.sort_by_cached_key(|q| q.to_string());
-    ordered_dataset
-        .iter()
-        .map(|q| q.to_string() + " .\n")
-        .collect()
-}
-
-/// **4.7 Hash First Degree Quads**
+/// **4.6 Hash First Degree Quads**
 ///   This algorithm calculates a hash for a given blank node across the
 ///   quads in a dataset in which that blank node is a component. If the
 ///   hash uniquely identifies that blank node, no further examination is
 ///   necessary. Otherwise, a hash will be created for the blank node using
-///   the algorithm in 4.9 Hash N-Degree Quads invoked via
-///   4.5 Canonicalization Algorithm.
-/// **4.7.3 Algorithm**
+///   the algorithm in Hash N-Degree Quads invoked via Canonicalization Algorithm.
+/// **4.6.3 Algorithm**
 ///   This algorithm takes the canonicalization state and a reference blank node
 ///   identifier as inputs.
 fn hash_first_degree_quads(
@@ -602,7 +811,7 @@ fn hash_first_degree_quads(
     #[cfg(feature = "log")]
     let _span_h1dq = debug_span!(
         "h1dq",
-        message = "log point: Hash First Degree Quads function (4.7.3)."
+        message = "log point: Hash First Degree Quads function (4.6.3)."
     )
     .entered();
 
@@ -701,7 +910,7 @@ impl HashRelatedBlankNodePosition {
     }
 }
 
-/// **4.8 Hash Related Blank Node**
+/// **4.7 Hash Related Blank Node**
 ///   This algorithm generates a hash for some blank node component of a quad, considering
 ///   its position within that quad. This is used as part of the Hash N-Degree Quads
 ///   algorithm to characterize the blank nodes related to some particular blank node within
@@ -778,14 +987,14 @@ impl Ord for HashNDegreeQuadsResult {
     }
 }
 
-/// **4.9 Hash N-Degree Quads**
+/// **4.8 Hash N-Degree Quads**
 ///   This algorithm calculates a hash for a given blank node across the quads in a dataset
 ///   in which that blank node is a component for which the hash does not uniquely identify
 ///   that blank node. This is done by expanding the search from quads directly referencing
 ///   that blank node (the mention set), to those quads which contain nodes which are also
 ///   components of quads in the mention set, called the gossip path. This process proceeds
 ///   in every greater degrees of indirection until a unique hash is obtained.
-/// **4.9.3 Algorithm**
+/// **4.8.3 Algorithm**
 ///   The inputs to this algorithm are the canonicalization state, the identifier for the
 ///   blank node to recursively hash quads for, and path identifier issuer which is an
 ///   identifier issuer that issues temporary blank node identifiers. The output from this
@@ -799,7 +1008,7 @@ fn hash_n_degree_quads(
     #[cfg(feature = "log")]
     let _span_hndq = debug_span!(
         "hndq",
-        message = "log point: Hash N-Degree Quads function (4.9.3)."
+        message = "log point: Hash N-Degree Quads function (4.8.3)."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -824,7 +1033,7 @@ fn hash_n_degree_quads(
     #[cfg(feature = "log")]
     let span_hndq_2 = debug_span!(
         "hndq.2",
-        message = "log point: Quads for identifier (4.9.3 (2))."
+        message = "log point: Quads for identifier (4.8.3 (2))."
     )
     .entered();
 
@@ -847,7 +1056,7 @@ fn hash_n_degree_quads(
     #[cfg(feature = "log")]
     let span_hndq_3 = debug_span!(
         "hndq.3",
-        message = "log point: Hash N-Degree Quads function (4.9.3 (3))."
+        message = "log point: Hash N-Degree Quads function (4.8.3 (3))."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -859,7 +1068,7 @@ fn hash_n_degree_quads(
         #[cfg(feature = "log")]
         let span_hndq_3_1 = debug_span!(
             "hndq.3.1",
-            message = "log point: Hash related bnode component (4.9.3 (3.1)).",
+            message = "log point: Hash related bnode component (4.8.3 (3.1)).",
             indent = 2
         )
         .entered();
@@ -985,7 +1194,7 @@ fn hash_n_degree_quads(
     #[cfg(feature = "log")]
     let span_hndq_5 = debug_span!(
         "hndq.5",
-        message = "log point: Hash N-Degree Quads function (4.9.3 (5)), entering loop."
+        message = "log point: Hash N-Degree Quads function (4.8.3 (5)), entering loop."
     )
     .entered();
     #[cfg(feature = "log")]
@@ -1012,7 +1221,7 @@ fn hash_n_degree_quads(
         #[cfg(feature = "log")]
         let span_hndq_5_4 = debug_span!(
             "hndq.5.4",
-            message = "log point: Hash N-Degree Quads function (4.9.3 (5.4)), entering loop.",
+            message = "log point: Hash N-Degree Quads function (4.8.3 (5.4)), entering loop.",
             indent = 2
         )
         .entered();
@@ -1038,7 +1247,7 @@ fn hash_n_degree_quads(
             #[cfg(feature = "log")]
             let span_hndq_5_4_4 = debug_span!(
                 "hndq.5.4.4",
-                message = "log point: Hash N-Degree Quads function (4.9.3 (5.4.4)), entering loop.",
+                message = "log point: Hash N-Degree Quads function (4.8.3 (5.4.4)), entering loop.",
                 indent = 2
             )
             .entered();
@@ -1090,7 +1299,7 @@ fn hash_n_degree_quads(
             #[cfg(feature = "log")]
                 let span_hndq_5_4_5 = debug_span!(
                 "hndq.5.4.5",
-                message = "log point: Hash N-Degree Quads function (4.9.3 (5.4.5)), before possible recursion.",
+                message = "log point: Hash N-Degree Quads function (4.8.3 (5.4.5)), before possible recursion.",
                 indent = 2
             )
             .entered();
@@ -1134,7 +1343,7 @@ fn hash_n_degree_quads(
                 #[cfg(feature="log")]
                 let span_hndq_5_4_5_4 = debug_span!(
                     "hndq.5.4.5.4",
-                    message = "log point: Hash N-Degree Quads function (4.9.3 (5.4.5.4)), combine result of recursion.",
+                    message = "log point: Hash N-Degree Quads function (4.8.3 (5.4.5.4)), combine result of recursion.",
                     indent = 2
                 ).entered();
 
@@ -1182,7 +1391,7 @@ fn hash_n_degree_quads(
         #[cfg(feature = "log")]
         let span_hndq_5_5 = debug_span!(
             "hndq.5.5",
-            message = "log point: Hash N-Degree Quads function (4.9.3 (5.5). End of current loop with Hn hashes.",
+            message = "log point: Hash N-Degree Quads function (4.8.3 (5.5). End of current loop with Hn hashes.",
             indent = 2
         )
         .entered();
@@ -1209,7 +1418,7 @@ fn hash_n_degree_quads(
     #[cfg(feature = "log")]
     let span_hndq_6 = debug_span!(
         "hndq.6",
-        message = "log point: Leaving Hash N-Degree Quads function (4.9.3 (6))."
+        message = "log point: Leaving Hash N-Degree Quads function (4.8.3 (6))."
     )
     .entered();
 

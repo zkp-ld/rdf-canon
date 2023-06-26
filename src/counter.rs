@@ -4,7 +4,7 @@ use std::{collections::HashMap, fmt};
 const DEFAULT_HNDQ_CALL_LIMIT: usize = 4000;
 
 pub trait HndqCallCounter {
-    fn new(max_calls: usize) -> Self;
+    fn new(max_calls: Option<usize>) -> Self;
     fn add(&mut self, identifier: &str) -> Result<(), CanonicalizationError>;
     fn sum(&self) -> usize;
 }
@@ -24,11 +24,12 @@ impl Default for SimpleHndqCallCounter {
 }
 
 impl HndqCallCounter for SimpleHndqCallCounter {
-    fn new(max_calls: usize) -> Self {
-        Self {
-            counter: Default::default(),
-            limit: max_calls,
-        }
+    fn new(max_calls: Option<usize>) -> Self {
+        let limit = match max_calls {
+            Some(limit) => limit,
+            None => DEFAULT_HNDQ_CALL_LIMIT,
+        };
+        Self { counter: 0, limit }
     }
 
     fn add(&mut self, _identifier: &str) -> Result<(), CanonicalizationError> {
@@ -69,10 +70,14 @@ impl Default for PerNodeHndqCallCounter {
 }
 
 impl HndqCallCounter for PerNodeHndqCallCounter {
-    fn new(max_calls: usize) -> Self {
+    fn new(max_calls: Option<usize>) -> Self {
+        let limit = match max_calls {
+            Some(limit) => limit,
+            None => DEFAULT_HNDQ_CALL_LIMIT,
+        };
         Self {
             counter: Default::default(),
-            limit: max_calls,
+            limit,
         }
     }
 

@@ -3,16 +3,16 @@
 **WORK IN PROGRESS**
 
 A Rust implementation of the [RDF Dataset Canonicalization](https://www.w3.org/TR/rdf-canon/) algorithm.
-The purpose of this implementation is only to understand and evaluate the specification and is **not intended for production use**.
+Its purpose is for understanding and evaluating the specification, and it's **not intended for production use**.
 
 ## Prerequisites
 
-- [Oxrdf and Oxttl (from `next` branch of Oxigraph)](https://github.com/oxigraph/oxigraph/tree/next): We use Oxttl to parse N-Quads and Oxrdf to deal with RDF data structures. Note that Oxttl is currently only available in `next` branch of Oxigraph; we will update it as soon as Oxigraph releases v0.4.
+- [Oxrdf and Oxttl (from `next` branch of Oxigraph)](https://github.com/oxigraph/oxigraph/tree/next): These libraries are used to parse N-Quads and handle RDF data structures. Please note that Oxttl is currently only available in the `next` branch of Oxigraph. We'll update this information when Oxigraph officially releases its next version.
 
 ## Usage
 
 Add the following dependencies into your Cargo.toml:
-(**current limitation**: depending `next` branch of Oxigraph to use `oxttl`; will be updated when Oxigraph releases v0.4)
+(**Current limitation**: dependency on `next` branch of Oxigraph to use `oxttl`; this will be updated once Oxigraph v0.4 is released)
 
 ```toml
 [dependencies]
@@ -21,20 +21,17 @@ oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 ```
 
-Then you can use:
-- `rdf_canon::canonicalize` to canonicalize OxRDF `Dataset`, and
-- `rdf_canon::serialize` to serialize the canonicalized `Dataset` into a canonical N-Quads
+You can then use the `rdf_canon::canonicalize` to convert OxRDF `Dataset` into canonical N-Quads.
 
 ### Example
 
 ```rust
 use oxrdf::Dataset;
 use oxttl::NQuadsParser;
-use rdf_canon::{canonicalize, serialize};
+use rdf_canon::canonicalize;
 use std::io::Cursor;
 
-fn main() {
-    let input_doc = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .  # test for canonical N-Quads
+let input = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .
 _:e0 <http://example.org/vocab#next> _:e1 .
 _:e0 <http://example.org/vocab#prev> _:e2 .
 _:e1 <http://example.org/vocab#next> _:e2 .
@@ -42,7 +39,7 @@ _:e1 <http://example.org/vocab#prev> _:e0 .
 _:e2 <http://example.org/vocab#next> _:e0 .
 _:e2 <http://example.org/vocab#prev> _:e1 .
 "#;
-    let expected_doc = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
+let expected = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
 _:c14n0 <http://example.org/vocab#next> _:c14n2 .
 _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
 _:c14n1 <http://example.org/vocab#next> _:c14n0 .
@@ -51,26 +48,96 @@ _:c14n2 <http://example.org/vocab#next> _:c14n1 .
 _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 "#;
 
-    // get dataset from N-Quads document
-    let quads = NQuadsParser::new()
-        .parse_from_read(Cursor::new(input_doc))
-        .into_iter()
-        .map(|x| x.unwrap());
-    let input_dataset = Dataset::from_iter(quads);
+let quads = NQuadsParser::new()
+    .parse_from_read(Cursor::new(input))
+    .into_iter()
+    .map(|x| x.unwrap());
+let input_dataset = Dataset::from_iter(quads);
+let canonicalized = canonicalize(&input_dataset).unwrap();
 
-    // canonicalize the dataset
-    let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-    let canonicalized_doc = serialize(canonicalized_dataset);
-
-    assert_eq!(canonicalized_doc, expected_doc);
+assert_eq!(canonicalized, expected);
 }
 ```
 
-## Advanced
+## Advanced Usage
 
-### Logging feature for debug
+### Canonicalized Dataset
 
-You can get the YAML-formatted debug log to enable `log` feature.
+The canonicalization algorithm can also return a [canonicalized dataset](https://www.w3.org/TR/rdf-canon/#dfn-canonicalized-dataset).
+
+[RDF Dataset Canonicalization](https://www.w3.org/TR/rdf-canon/)
+
+> A [canonicalized dataset](https://www.w3.org/TR/rdf-canon/#dfn-canonicalized-dataset) is the combination of the following:
+> 
+> -   an [RDF dataset](https://www.w3.org/TR/rdf11-concepts/#dfn-rdf-dataset) — the [input dataset](https://www.w3.org/TR/rdf-canon/#dfn-input-dataset),
+> -   the [input blank node identifier map](https://www.w3.org/TR/rdf-canon/#dfn-input-blank-node-identifier-map) — mapping [blank nodes](https://www.w3.org/TR/rdf11-concepts/#dfn-blank-node) in the input dataset to [blank node identifiers](https://www.w3.org/TR/rdf11-concepts/#dfn-blank-node-identifier), and
+> -   the [issued identifiers map](https://www.w3.org/TR/rdf-canon/#dfn-issued-identifiers-map) from the [canonical issuer](https://www.w3.org/TR/rdf-canon/#dfn-canonical-issuer) — mapping identifiers in the input dataset to canonical identifiers
+> 
+> A concrete serialization of a [canonicalized dataset](https://www.w3.org/TR/rdf-canon/#dfn-canonicalized-dataset) _MUST_ label all [blank nodes](https://www.w3.org/TR/rdf11-concepts/#dfn-blank-node) using the canonical [blank node identifiers](https://www.w3.org/TR/rdf11-concepts/#dfn-blank-node-identifier).
+
+If you prefer to work with a [canonicalized dataset](https://www.w3.org/TR/rdf-canon/#dfn-canonicalized-dataset),
+you can use `issue` function to obtain the [issued identifiers map](https://www.w3.org/TR/rdf-canon/#dfn-issued-identifiers-map),
+which can be combined with the [input dataset](https://www.w3.org/TR/rdf-canon/#dfn-input-dataset)
+(containing the embedded [input blank node identifier map](https://www.w3.org/TR/rdf-canon/#dfn-input-blank-node-identifier-map) in this implementation)
+to construct the [canonicalized dataset](https://www.w3.org/TR/rdf-canon/#dfn-canonicalized-dataset).
+
+```rust
+use oxrdf::Dataset;
+use oxttl::NQuadsParser;
+use rdf_canon::issue;
+use std::collections::HashMap;
+use std::io::Cursor;
+
+let input = r#"
+_:e0 <http://example.org/vocab#next> _:e1 .
+_:e0 <http://example.org/vocab#prev> _:e2 .
+_:e1 <http://example.org/vocab#next> _:e2 .
+_:e1 <http://example.org/vocab#prev> _:e0 .
+_:e2 <http://example.org/vocab#next> _:e0 .
+_:e2 <http://example.org/vocab#prev> _:e1 .
+"#;
+let expected = HashMap::from([
+    ("e0".to_string(), "c14n0".to_string()),
+    ("e1".to_string(), "c14n2".to_string()),
+    ("e2".to_string(), "c14n1".to_string()),
+]);
+
+let quads = NQuadsParser::new()
+    .parse_from_read(Cursor::new(input))
+    .into_iter()
+    .map(|x| x.unwrap());
+let input_dataset = Dataset::from_iter(quads);
+let issued_identifiers_map = issue(&input_dataset).unwrap();
+
+assert_eq!(issued_identifiers_map, expected);
+```
+
+
+### Protecting against poison dataset
+
+As mentioned in [https://www.w3.org/TR/rdf-canon/#dataset-poisoning](https://www.w3.org/TR/rdf-canon/#dataset-poisoning),
+there are some malicious datasets that can cause the canonicalization algorithm to consume a large amount of computing time.
+We provide a call limit on the execution of the Hash N-Degree Quads algorithm to prevent it from running indefinitely due to poisoned data.
+The default limit is set to 4000.
+If you wish to raise or lower this limit, you can specify the limit using the `canonicalize_with_options` function as shown below.
+
+```rust
+let options = CanonicalizationOptions {
+    hndq_call_limit: Some(10000),
+};
+let canonicalized = canonicalize_with_options(&input_dataset, &options).unwrap();    
+```
+
+### Debug Logging Feature
+
+The YAML-formatted debug log can be obtained by enabling the `log` feature.
+
+```toml
+[dependencies]
+rdf-canon = { git = "https://github.com/yamdan/rdf-canon-rust.git", features = ["log"] }
+oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
+```
 
 ```rust
 use oxrdf::Dataset;
@@ -158,18 +225,6 @@ ca:
   ca.6:
     log point: Replace original with canonical labels (4.5.3 (6)).
     issued identifiers map: {e0: c14n0, e1: c14n1}
-```
-
-### HNDQ call limit
-
-We have set a call limit on the execution of the Hash N-Degree Quads algorithm to prevent it from running indefinitely due to poison data.
-If users wish to raise or lower this limit, please specify the limit using the `canonicalize_with_call_limit` function as shown below.
-Default limit is set to 4000.
-
-```rust
-    // canonicalize the dataset with call limit 10000
-    let canonicalized_dataset = canonicalize_with_call_limit(&input_dataset, 10000).unwrap();
-    let canonicalized_doc = serialize(canonicalized_dataset);
 ```
 
 ## Changelog

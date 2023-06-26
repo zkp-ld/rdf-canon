@@ -1,14 +1,13 @@
 [package]
 name = "rdf-canon"
 authors = ["yamdan"]
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 base16ct = "0.2"
-indexmap = "1.9"
 itertools = "0.10"
 oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 sha2 = "0.10"
