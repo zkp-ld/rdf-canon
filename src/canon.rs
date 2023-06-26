@@ -256,6 +256,11 @@ fn canonicalize_blank_node(
     }
 }
 
+#[derive(Default)]
+pub struct CanonicalizationOptions {
+    hndq_call_limit: Option<usize>,
+}
+
 /// **4.4 Canonicalization Algorithm**
 ///   The canonicalization algorithm converts an input dataset into a normalized dataset.
 ///   This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
@@ -295,19 +300,72 @@ fn canonicalize_blank_node(
 /// assert_eq!(canonicalized_doc, expected_canonicalized_doc);
 /// ```
 pub fn canonicalize(input_dataset: &Dataset) -> Result<Dataset, CanonicalizationError> {
-    let hndq_call_counter = SimpleHndqCallCounter::default();
-    canonicalize_with_hndq_call_counter(input_dataset, hndq_call_counter)
+    let options = CanonicalizationOptions::default();
+    canonicalize_with_options(input_dataset, &options)
 }
 
-pub fn canonicalize_with_call_limit(
+pub fn canonicalize_with_options(
     input_dataset: &Dataset,
-    call_limit: usize,
+    options: &CanonicalizationOptions,
 ) -> Result<Dataset, CanonicalizationError> {
-    let hndq_call_counter = SimpleHndqCallCounter::new(call_limit);
+    let hndq_call_counter = SimpleHndqCallCounter::new(options.hndq_call_limit);
     canonicalize_with_hndq_call_counter(input_dataset, hndq_call_counter)
 }
 
-pub fn canonicalize_with_hndq_call_counter(
+/// **4.4 Canonicalization Algorithm**
+///   The canonicalization algorithm converts an input dataset into a normalized dataset.
+///   This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
+///
+/// ```
+/// use oxrdf::Dataset;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::{canonicalize_and_serialize};
+/// use std::io::Cursor;
+
+/// let input_doc = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .  # test for canonical N-Quads
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let expected_canonicalized_doc = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
+/// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
+/// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
+/// _:c14n1 <http://example.org/vocab#next> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
+/// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
+/// "#;
+///
+/// let quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input_doc))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let input_dataset = Dataset::from_iter(quads);
+/// let canonicalized_doc = canonicalize_and_serialize(&input_dataset).unwrap();
+///
+/// assert_eq!(canonicalized_doc, expected_canonicalized_doc);
+/// ```
+pub fn canonicalize_and_serialize(
+    input_dataset: &Dataset,
+) -> Result<String, CanonicalizationError> {
+    let options = CanonicalizationOptions::default();
+    canonicalize_and_serialize_with_options(input_dataset, &options)
+}
+
+pub fn canonicalize_and_serialize_with_options(
+    input_dataset: &Dataset,
+    options: &CanonicalizationOptions,
+) -> Result<String, CanonicalizationError> {
+    let hndq_call_counter = SimpleHndqCallCounter::new(options.hndq_call_limit);
+    let canonicalized_dataset =
+        canonicalize_with_hndq_call_counter(input_dataset, hndq_call_counter)?;
+    Ok(serialize(canonicalized_dataset))
+}
+
+fn canonicalize_with_hndq_call_counter(
     input_dataset: &Dataset,
     mut hndq_call_counter: SimpleHndqCallCounter,
 ) -> Result<Dataset, CanonicalizationError> {

@@ -3,7 +3,10 @@ pub mod counter;
 pub mod error;
 #[cfg(feature = "log")]
 pub mod logger;
-pub use crate::canon::{canonicalize, canonicalize_with_call_limit, serialize};
+pub use crate::canon::{
+    canonicalize, canonicalize_and_serialize, canonicalize_and_serialize_with_options,
+    canonicalize_with_options, serialize,
+};
 pub use crate::error::CanonicalizationError;
 #[cfg(feature = "log")]
 pub use crate::logger::YamlLayer;
