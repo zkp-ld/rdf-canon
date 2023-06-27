@@ -1,10 +1,11 @@
+pub mod api;
 pub mod canon;
 pub mod counter;
 pub mod error;
 #[cfg(feature = "log")]
 pub mod logger;
-pub use crate::canon::{
-    canonicalize, canonicalize_with_options, issue, issue_with_options, relabel, serialize,
+pub use crate::api::{
+    canonicalize, canonicalize_with_options, issue, issue_with_options, relabel,
     CanonicalizationOptions,
 };
 pub use crate::error::CanonicalizationError;
