@@ -61,7 +61,7 @@ mod tests {
             }
         }
 
-        let range = 1..=73;
+        let range = 1..=76;
         for i in range {
             let input_path = format!("{BASE_PATH}/test{:03}-in.nq", i);
             let Ok(input_file) = File::open(input_path) else {
