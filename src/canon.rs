@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 
 #[cfg(feature = "log")]
-use tracing::{debug, debug_span};
+use tracing::{debug, debug_span, info};
 
 /// **4.2 Canonicalization State**
 struct CanonicalizationState {
@@ -390,13 +390,33 @@ pub fn canonicalize_core(
             indent = 2
         )
         .entered();
+
+        // TODO: check if the `sort()` here is actually in **Unicode code point order**
+        hash_path_list.sort();
+
+        #[cfg(feature = "log")]
+        {
+            fn has_duplicates_in_hash_path_list(l: &Vec<HashNDegreeQuadsResult>) -> bool {
+                if l.is_empty() {
+                    return false;
+                }
+                for i in 0..(l.len() - 1) {
+                    if l[i].hash == l[i + 1].hash {
+                        return true;
+                    }
+                }
+                false
+            }
+            if has_duplicates_in_hash_path_list(&hash_path_list) {
+                info!("has duplicate hashes: true");
+            }
+        }
+
         #[cfg(feature = "log")]
         if !hash_path_list.is_empty() {
             debug!("with:");
         }
 
-        // TODO: check if the `sort()` here is actually in **Unicode code point order**
-        hash_path_list.sort();
         for result in hash_path_list.iter() {
             #[cfg(feature = "log")]
             {
