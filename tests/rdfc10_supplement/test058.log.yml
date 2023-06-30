@@ -36,8 +36,8 @@ ca:
     log point: Create canonical replacements for hashes mapping to a single node (4.4.3 (4)).
     with:
       - identifier: e3
-    hash: f17b712592ce297915a264a544ba5efb5424a280ff0baeee74c462d7c80ab014
-    canonical label: c14n0
+        hash: f17b712592ce297915a264a544ba5efb5424a280ff0baeee74c462d7c80ab014
+        canonical label: c14n0
   ca.5:
     log point: Calculate hashes for identifiers with shared hashes (4.4.3 (5)).
     with:
@@ -160,6 +160,5 @@ ca:
                   cid: c14n2
   ca.6:
     log point: Replace original with canonical labels (4.4.3 (6)).
-    issued identifiers map: {e0: c14n1, e3: c14n0, e1: c14n2}
+    issued identifiers map: {e1: c14n2, e3: c14n0, e0: c14n1}
     hndq_call_counter:  { counter: 2, limit: 4000 }
-
