@@ -297,7 +297,7 @@ pub fn canonicalize_core(
         #[cfg(feature = "log")]
         {
             debug!(indent = 1, "- identifier: {}", identifier);
-            debug!("hash: {}", hash);
+            debug!(indent = 2, "hash: {}", hash);
         }
 
         // 4.2) Use the Issue Identifier algorithm, passing canonical issuer and the single blank node identifier,
@@ -305,7 +305,7 @@ pub fn canonicalize_core(
         let _canonical_identifier = state.canonical_issuer.issue(identifier);
 
         #[cfg(feature = "log")]
-        debug!("canonical label: {}", _canonical_identifier);
+        debug!(indent = 2, "canonical label: {}", _canonical_identifier);
 
         // 4.3) Remove the map entry for hash from the hash to blank nodes map.
         new_hash_to_blank_node_map.remove(hash);
@@ -475,7 +475,7 @@ pub fn canonicalize_core(
         state.canonical_issuer.serialize_issued_identifiers_map()
     );
     #[cfg(feature = "log")]
-    debug!("hndq_call_counter: {:?}", hndq_call_counter);
+    info!("hndq_call_counter: {:?}", hndq_call_counter);
 
     #[cfg(feature = "log")]
     span_ca_6.exit();
@@ -1032,7 +1032,6 @@ fn hash_n_degree_quads(
                 let span_hndq_5_4_5_4 = debug_span!(
                     "hndq.5.4.5.4",
                     message = "log point: Hash N-Degree Quads function (4.8.3 (5.4.5.4)), combine result of recursion.",
-                    indent = 2
                 ).entered();
 
                 issuer_copy = result.issuer;
