@@ -231,6 +231,7 @@ ca:
 ### v0.9.0
 
 - modify the test code to use all official test cases from w3c/rdf-canon with their test manifest
+- extract `api` module from `canon`
 - add info-level log message to notify if there are duplicate hashes in `hash path list`
 - fix debug log indentations
 
