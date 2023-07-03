@@ -14,13 +14,14 @@ pub use crate::logger::YamlLayer;
 
 #[cfg(test)]
 mod tests {
-    use crate::canonicalize;
+    use crate::{canonicalize, issue, CanonicalizationError};
     use oxrdf::Dataset;
     use oxttl::NQuadsParser;
+    use serde::Deserialize;
     use std::{
+        collections::HashMap,
         fs::File,
         io::{BufReader, Read},
-        path::Path,
     };
 
     #[cfg(feature = "log")]
@@ -40,55 +41,82 @@ mod tests {
             .try_init();
     }
 
+    #[derive(Deserialize)]
+    struct TestManifest {
+        entries: Vec<TestManifestEntry>,
+    }
+
+    #[derive(Deserialize)]
+    struct TestManifestEntry {
+        id: String,
+        r#type: String,
+        name: String,
+        action: String,
+        result: Option<String>,
+    }
+
     #[test]
     fn test_canonicalize() {
         #[cfg(feature = "log")]
         init_logger(tracing::Level::INFO);
         // init_logger(tracing::Level::DEBUG);
 
-        const BASE_PATH: &str = "tests/rdfc10";
+        const MANIFEST_PATH: &str = "tests/manifest.jsonld";
 
-        fn read_nquads_as_string(path: &str) -> Option<String> {
-            let path = Path::new(&path);
-            let mut file = match File::open(path) {
-                Err(_) => return None,
-                Ok(file) => file,
-            };
-            let mut s = String::new();
-            match file.read_to_string(&mut s) {
-                Err(why) => panic!("couldn't read {}: {}", path.display(), why),
-                Ok(_) => Some(s),
-            }
-        }
+        let manifest_file = File::open(MANIFEST_PATH).unwrap();
+        let manifest: TestManifest =
+            serde_json::from_reader(BufReader::new(manifest_file)).unwrap();
 
-        let range = 1..=76;
-        for i in range {
-            let input_path = format!("{BASE_PATH}/test{:03}-in.nq", i);
-            let Ok(input_file) = File::open(input_path) else {
-                println!("test{:03} not found", i);
-                continue;
-            };
+        for entry in manifest.entries {
+            let TestManifestEntry {
+                r#id: test_id,
+                r#type: test_type,
+                name: test_name,
+                action: input_path,
+                result: output_path,
+                ..
+            } = entry;
+
+            let input_file = File::open(format!("tests/{}", input_path)).unwrap();
             let input_quads = NQuadsParser::new()
                 .parse_from_read(BufReader::new(input_file))
                 .into_iter()
                 .map(|x| x.unwrap());
             let input_dataset = Dataset::from_iter(input_quads);
 
-            let canonicalized_document = canonicalize(&input_dataset).unwrap();
+            match test_type.as_str() {
+                "rdfc:RDFC10EvalTest" => {
+                    let canonicalized_document = canonicalize(&input_dataset).unwrap();
+                    let mut output_file =
+                        File::open(format!("tests/{}", output_path.unwrap())).unwrap();
+                    let mut expected_output = String::new();
+                    output_file.read_to_string(&mut expected_output).unwrap();
+                    assert_eq!(
+                        canonicalized_document, expected_output,
+                        "FAILED: {} - {}",
+                        test_id, test_name
+                    )
+                }
+                "rdfc:RDFC10MapTest" => {
+                    let issued_identifiers_map = issue(&input_dataset).unwrap();
+                    let output_file =
+                        File::open(format!("tests/{}", output_path.unwrap())).unwrap();
+                    let expected_output: HashMap<String, String> =
+                        serde_json::from_reader(BufReader::new(output_file)).unwrap();
+                    assert_eq!(
+                        issued_identifiers_map, expected_output,
+                        "FAILED: {} - {}",
+                        test_id, test_name
+                    )
+                }
+                "rdfc:RDFC10NegativeEvalTest" => match canonicalize(&input_dataset) {
+                    Err(CanonicalizationError::HndqCallLimitExceeded(_)) => {}
+                    _ => panic!("FAILED: {} - {}", test_id, test_name),
+                },
+                _ => panic!("test type {} is not supported", test_type),
+            }
 
-            let output_path = format!("{BASE_PATH}/test{:03}-rdfc10.nq", i);
-            let expected_output = match read_nquads_as_string(&output_path) {
-                Some(s) => s,
-                None => continue,
-            };
-
-            assert_eq!(
-                canonicalized_document, expected_output,
-                "test{:03} failed",
-                i
-            );
-
-            println!("test{:03} passed", i);
+            println!("PASSED: {} - {}", test_id, test_name);
         }
     }
 }
