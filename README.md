@@ -228,6 +228,10 @@ ca:
 
 ## Changelog
 
+### v0.9.1
+
+- fix debug log indentations
+
 ### v0.9.0
 
 - modify the test code to use all official test cases from w3c/rdf-canon with their test manifest

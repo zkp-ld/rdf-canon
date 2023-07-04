@@ -914,10 +914,16 @@ fn hash_n_degree_quads(
         )
         .entered();
 
+        #[cfg(feature = "log")]
+        let mut span_hndq_5_4_flag = false;
+
         'perm_loop: for p in blank_node_list.iter().permutations(blank_node_list.len()) {
             #[cfg(feature = "log")]
             {
-                debug!("with:");
+                if !span_hndq_5_4_flag {
+                    debug!("with:");
+                    span_hndq_5_4_flag = true;
+                }
                 debug!(indent = 1, "- perm: {:?}", p);
             }
 
@@ -1032,6 +1038,7 @@ fn hash_n_degree_quads(
                 let span_hndq_5_4_5_4 = debug_span!(
                     "hndq.5.4.5.4",
                     message = "log point: Hash N-Degree Quads function (4.8.3 (5.4.5.4)), combine result of recursion.",
+                    indent = 2
                 ).entered();
 
                 issuer_copy = result.issuer;
