@@ -5,7 +5,8 @@ pub mod error;
 #[cfg(feature = "log")]
 pub mod logger;
 pub use crate::api::{
-    canonicalize, canonicalize_with_options, issue, issue_with_options, relabel,
+    canonicalize, canonicalize_quads, canonicalize_quads_with_options, canonicalize_with_options,
+    issue, issue_quads, issue_quads_with_options, issue_with_options, relabel, relabel_quads,
     CanonicalizationOptions,
 };
 pub use crate::error::CanonicalizationError;

@@ -51,6 +51,11 @@ pub fn canonicalize(input_dataset: &Dataset) -> Result<String, CanonicalizationE
     canonicalize_with_options(input_dataset, &options)
 }
 
+pub fn canonicalize_quads(input_quads: &[Quad]) -> Result<String, CanonicalizationError> {
+    let options = CanonicalizationOptions::default();
+    canonicalize_quads_with_options(input_quads, &options)
+}
+
 #[derive(Default)]
 pub struct CanonicalizationOptions {
     pub hndq_call_limit: Option<usize>,
@@ -106,6 +111,57 @@ pub fn canonicalize_with_options(
     Ok(serialize(&relabeled_dataset))
 }
 
+/// Given some options (e.g., call limit),
+/// returns the serialized canonical form of the canonicalized dataset,
+/// where any blank nodes in the input quads are assigned deterministic identifiers.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::Quad;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::{canonicalize_quads_with_options, CanonicalizationOptions};
+/// use std::io::Cursor;
+
+/// let input = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let expected = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
+/// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
+/// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
+/// _:c14n1 <http://example.org/vocab#next> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
+/// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
+/// "#;
+///
+/// let input_quads: Vec<Quad> = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input))
+///     .into_iter()
+///     .map(|x| x.unwrap())
+///     .collect();
+/// let options = CanonicalizationOptions {
+///     hndq_call_limit: Some(10000),
+/// };
+/// let canonicalized = canonicalize_quads_with_options(&input_quads, &options).unwrap();
+///
+/// assert_eq!(canonicalized, expected);
+/// ```
+pub fn canonicalize_quads_with_options(
+    input_quads: &[Quad],
+    options: &CanonicalizationOptions,
+) -> Result<String, CanonicalizationError> {
+    let input_dataset = Dataset::from_iter(input_quads);
+    let issued_identifiers_map = issue_with_options(&input_dataset, options)?;
+    let relabeled_dataset = relabel(&input_dataset, &issued_identifiers_map)?;
+    Ok(serialize(&relabeled_dataset))
+}
+
 /// Assigns deterministic identifiers to any blank nodes in the input dataset
 /// and returns the assignment result as a map.
 ///
@@ -144,6 +200,46 @@ pub fn canonicalize_with_options(
 pub fn issue(input_dataset: &Dataset) -> Result<HashMap<String, String>, CanonicalizationError> {
     let options = CanonicalizationOptions::default();
     issue_with_options(input_dataset, &options)
+}
+
+/// Assigns deterministic identifiers to any blank nodes in the input quads
+/// and returns the assignment result as a map.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::Quad;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::issue_quads;
+/// use std::collections::HashMap;
+/// use std::io::Cursor;
+///
+/// let input = r#"
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let expected_map = HashMap::from([
+///     ("e0".to_string(), "c14n0".to_string()),
+///     ("e1".to_string(), "c14n2".to_string()),
+///     ("e2".to_string(), "c14n1".to_string()),
+/// ]);
+///
+/// let input_quads: Vec<Quad> = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input))
+///     .into_iter()
+///     .map(|x| x.unwrap())
+///     .collect();
+/// let issued_identifiers_map = issue_quads(&input_quads).unwrap();
+///
+/// assert_eq!(issued_identifiers_map, expected_map);
+/// ```
+pub fn issue_quads(input_quads: &[Quad]) -> Result<HashMap<String, String>, CanonicalizationError> {
+    let options = CanonicalizationOptions::default();
+    issue_quads_with_options(input_quads, &options)
 }
 
 /// Given some options (e.g., call limit),
@@ -192,6 +288,55 @@ pub fn issue_with_options(
 ) -> Result<HashMap<String, String>, CanonicalizationError> {
     let hndq_call_counter = SimpleHndqCallCounter::new(options.hndq_call_limit);
     canonicalize_core(input_dataset, hndq_call_counter)
+}
+
+/// Given some options (e.g., call limit),
+/// assigns deterministic identifiers to any blank nodes in the input quads
+/// and returns the assignment result as a map.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::Quad;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::{issue_quads_with_options, CanonicalizationOptions};
+/// use std::collections::HashMap;
+/// use std::io::Cursor;
+///
+/// let input = r#"
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let expected_map = HashMap::from([
+///     ("e0".to_string(), "c14n0".to_string()),
+///     ("e1".to_string(), "c14n2".to_string()),
+///     ("e2".to_string(), "c14n1".to_string()),
+/// ]);
+///
+/// let input_quads: Vec<Quad> = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input))
+///     .into_iter()
+///     .map(|x| x.unwrap())
+///     .collect();
+/// let options = CanonicalizationOptions {
+///     hndq_call_limit: Some(10000),
+/// };
+///
+/// let issued_identifiers_map = issue_quads_with_options(&input_quads, &options).unwrap();
+///
+/// assert_eq!(issued_identifiers_map, expected_map);
+/// ```
+pub fn issue_quads_with_options(
+    input_quads: &[Quad],
+    options: &CanonicalizationOptions,
+) -> Result<HashMap<String, String>, CanonicalizationError> {
+    let input_dataset = Dataset::from_iter(input_quads);
+    let hndq_call_counter = SimpleHndqCallCounter::new(options.hndq_call_limit);
+    canonicalize_core(&input_dataset, hndq_call_counter)
 }
 
 /// Re-label blank node identifiers in the input dataset according to the issued identifiers map.
@@ -248,6 +393,63 @@ pub fn relabel(
     input_dataset
         .iter()
         .map(|q| relabel_quad(q, issued_identifiers_map))
+        .collect()
+}
+
+/// Re-label blank node identifiers in the input quads according to the issued identifiers map.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::Quad;
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::relabel_quads;
+/// use std::collections::HashMap;
+/// use std::io::Cursor;
+///
+/// let input = r#"
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let issued_identifiers_map = HashMap::from([
+///     ("e0".to_string(), "c14n0".to_string()),
+///     ("e1".to_string(), "c14n2".to_string()),
+///     ("e2".to_string(), "c14n1".to_string()),
+/// ]);
+/// let expected = r#"
+/// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
+/// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#next> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
+/// "#;
+///
+/// let input_quads: Vec<Quad> = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input))
+///     .into_iter()
+///     .map(|x| x.unwrap())
+///     .collect();
+/// let labeled_quads = relabel_quads(&input_quads, &issued_identifiers_map).unwrap();
+/// let expected_quads: Vec<Quad> = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(expected))
+///     .into_iter()
+///     .map(|x| x.unwrap())
+///     .collect();
+///
+/// assert_eq!(labeled_quads, expected_quads);
+/// ```
+pub fn relabel_quads(
+    input_quads: &[Quad],
+    issued_identifiers_map: &HashMap<String, String>,
+) -> Result<Vec<Quad>, CanonicalizationError> {
+    input_quads
+        .iter()
+        .map(|q| relabel_quad(q.into(), issued_identifiers_map))
         .collect()
 }
 
