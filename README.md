@@ -227,6 +227,10 @@ ca:
 
 ## Changelog
 
+### v0.10.0
+
+- add `*_quads` APIs to allow input in `Vec<quad>` instead of `Dataset`
+
 ### v0.9.1
 
 - fix debug log indentations
