@@ -37,11 +37,11 @@ use std::collections::HashMap;
 /// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 /// "#;
 ///
-/// let quads = NQuadsParser::new()
+/// let input_quads = NQuadsParser::new()
 ///     .parse_from_read(Cursor::new(input))
 ///     .into_iter()
 ///     .map(|x| x.unwrap());
-/// let input_dataset = Dataset::from_iter(quads);
+/// let input_dataset = Dataset::from_iter(input_quads);
 /// let canonicalized = canonicalize(&input_dataset).unwrap();
 ///
 /// assert_eq!(canonicalized, expected);
@@ -85,11 +85,11 @@ pub struct CanonicalizationOptions {
 /// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 /// "#;
 ///
-/// let quads = NQuadsParser::new()
+/// let input_quads = NQuadsParser::new()
 ///     .parse_from_read(Cursor::new(input))
 ///     .into_iter()
 ///     .map(|x| x.unwrap());
-/// let input_dataset = Dataset::from_iter(quads);
+/// let input_dataset = Dataset::from_iter(input_quads);
 /// let options = CanonicalizationOptions {
 ///     hndq_call_limit: Some(10000),
 /// };
@@ -126,20 +126,20 @@ pub fn canonicalize_with_options(
 /// _:e2 <http://example.org/vocab#next> _:e0 .
 /// _:e2 <http://example.org/vocab#prev> _:e1 .
 /// "#;
-/// let expected = HashMap::from([
+/// let expected_map = HashMap::from([
 ///     ("e0".to_string(), "c14n0".to_string()),
 ///     ("e1".to_string(), "c14n2".to_string()),
 ///     ("e2".to_string(), "c14n1".to_string()),
 /// ]);
 ///
-/// let quads = NQuadsParser::new()
+/// let input_quads = NQuadsParser::new()
 ///     .parse_from_read(Cursor::new(input))
 ///     .into_iter()
 ///     .map(|x| x.unwrap());
-/// let input_dataset = Dataset::from_iter(quads);
+/// let input_dataset = Dataset::from_iter(input_quads);
 /// let issued_identifiers_map = issue(&input_dataset).unwrap();
 ///
-/// assert_eq!(issued_identifiers_map, expected);
+/// assert_eq!(issued_identifiers_map, expected_map);
 /// ```
 pub fn issue(input_dataset: &Dataset) -> Result<HashMap<String, String>, CanonicalizationError> {
     let options = CanonicalizationOptions::default();
@@ -167,24 +167,24 @@ pub fn issue(input_dataset: &Dataset) -> Result<HashMap<String, String>, Canonic
 /// _:e2 <http://example.org/vocab#next> _:e0 .
 /// _:e2 <http://example.org/vocab#prev> _:e1 .
 /// "#;
-/// let expected = HashMap::from([
+/// let expected_map = HashMap::from([
 ///     ("e0".to_string(), "c14n0".to_string()),
 ///     ("e1".to_string(), "c14n2".to_string()),
 ///     ("e2".to_string(), "c14n1".to_string()),
 /// ]);
 ///
-/// let quads = NQuadsParser::new()
+/// let input_quads = NQuadsParser::new()
 ///     .parse_from_read(Cursor::new(input))
 ///     .into_iter()
 ///     .map(|x| x.unwrap());
-/// let input_dataset = Dataset::from_iter(quads);
+/// let input_dataset = Dataset::from_iter(input_quads);
 /// let options = CanonicalizationOptions {
 ///     hndq_call_limit: Some(10000),
 /// };
 ///
 /// let issued_identifiers_map = issue_with_options(&input_dataset, &options).unwrap();
 ///
-/// assert_eq!(issued_identifiers_map, expected);
+/// assert_eq!(issued_identifiers_map, expected_map);
 /// ```
 pub fn issue_with_options(
     input_dataset: &Dataset,
@@ -205,7 +205,7 @@ pub fn issue_with_options(
 /// use std::collections::HashMap;
 /// use std::io::Cursor;
 ///
-/// let input_doc = r#"
+/// let input = r#"
 /// _:e0 <http://example.org/vocab#next> _:e1 .
 /// _:e0 <http://example.org/vocab#prev> _:e2 .
 /// _:e1 <http://example.org/vocab#next> _:e2 .
@@ -218,7 +218,7 @@ pub fn issue_with_options(
 ///     ("e1".to_string(), "c14n2".to_string()),
 ///     ("e2".to_string(), "c14n1".to_string()),
 /// ]);
-/// let expected_doc = r#"
+/// let expected = r#"
 /// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
 /// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
 /// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
@@ -227,19 +227,19 @@ pub fn issue_with_options(
 /// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
 /// "#;
 ///
-/// let quads = NQuadsParser::new()
-///     .parse_from_read(Cursor::new(input_doc))
+/// let input_quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input))
 ///     .into_iter()
 ///     .map(|x| x.unwrap());
-/// let input_dataset = Dataset::from_iter(quads);
+/// let input_dataset = Dataset::from_iter(input_quads);
 /// let labeled_dataset = relabel(&input_dataset, &issued_identifiers_map).unwrap();
-/// let quads = NQuadsParser::new()
-///     .parse_from_read(Cursor::new(expected_doc))
+/// let expected_quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(expected))
 ///     .into_iter()
 ///     .map(|x| x.unwrap());
-/// let expected = Dataset::from_iter(quads);
+/// let expected_dataset = Dataset::from_iter(expected_quads);
 ///
-/// assert_eq!(labeled_dataset, expected);
+/// assert_eq!(labeled_dataset, expected_dataset);
 /// ```
 pub fn relabel(
     input_dataset: &Dataset,
