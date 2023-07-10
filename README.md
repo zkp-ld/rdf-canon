@@ -48,11 +48,11 @@ _:c14n2 <http://example.org/vocab#next> _:c14n1 .
 _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 "#;
 
-let quads = NQuadsParser::new()
+let input_quads = NQuadsParser::new()
     .parse_from_read(Cursor::new(input))
     .into_iter()
     .map(|x| x.unwrap());
-let input_dataset = Dataset::from_iter(quads);
+let input_dataset = Dataset::from_iter(input_quads);
 let canonicalized = canonicalize(&input_dataset).unwrap();
 
 assert_eq!(canonicalized, expected);
@@ -101,16 +101,15 @@ let expected = HashMap::from([
     ("e2".to_string(), "c14n1".to_string()),
 ]);
 
-let quads = NQuadsParser::new()
+let input_quads = NQuadsParser::new()
     .parse_from_read(Cursor::new(input))
     .into_iter()
     .map(|x| x.unwrap());
-let input_dataset = Dataset::from_iter(quads);
+let input_dataset = Dataset::from_iter(input_quads);
 let issued_identifiers_map = issue(&input_dataset).unwrap();
 
 assert_eq!(issued_identifiers_map, expected);
 ```
-
 
 ### Protecting against poison dataset
 
@@ -141,7 +140,7 @@ oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 ```rust
 use oxrdf::Dataset;
 use oxttl::NQuadsParser;
-use rdf_canon::{canonicalize, logger::YamlLayer, serialize};
+use rdf_canon::{canonicalize, logger::YamlLayer};
 use std::io::Cursor;
 
 // setup for debug logger
@@ -158,25 +157,24 @@ fn main() {
     // initialize debug logger
     init_logger(tracing::Level::DEBUG);
 
-    let input_doc = r#"_:e0 <http://example.com/#p1> _:e1 .
+    let input = r#"_:e0 <http://example.com/#p1> _:e1 .
 _:e1 <http://example.com/#p2> "Foo" .
 "#;
-    let expected_doc = r#"_:c14n0 <http://example.com/#p1> _:c14n1 .
+    let expected = r#"_:c14n0 <http://example.com/#p1> _:c14n1 .
 _:c14n1 <http://example.com/#p2> "Foo" .
 "#;
 
     // get dataset from N-Quads document
-    let quads = NQuadsParser::new()
-        .parse_from_read(Cursor::new(input_doc))
+    let input_quads = NQuadsParser::new()
+        .parse_from_read(Cursor::new(input))
         .into_iter()
         .map(|x| x.unwrap());
-    let input_dataset = Dataset::from_iter(quads);
+    let input_dataset = Dataset::from_iter(input_quads);
 
     // canonicalize the dataset
-    let canonicalized_dataset = canonicalize(&input_dataset).unwrap();
-    let canonicalized_doc = serialize(canonicalized_dataset);
+    let canonicalized = canonicalize(&input_dataset).unwrap();
 
-    assert_eq!(canonicalized_doc, expected_doc);
+    assert_eq!(canonicalized, expected);
 }
 ```
 
@@ -184,9 +182,9 @@ The above code generates the following debug log:
 
 ```yaml
 ca:
-  log point: Entering the canonicalization function (4.5.3).
+  log point: Entering the canonicalization function (4.4.3).
   ca.2:
-    log point: Extract quads for each bnode (4.5.3 (2)).
+    log point: Extract quads for each bnode (4.4.3 (2)).
     Bnode to quads:
       e0:
         - _:e0 <http://example.com/#p1> _:e1 .
@@ -194,23 +192,23 @@ ca:
         - _:e0 <http://example.com/#p1> _:e1 .
         - _:e1 <http://example.com/#p2> "Foo" .
   ca.3:
-    log point: Calculated first degree hashes (4.5.3 (3)).
+    log point: Calculated first degree hashes (4.4.3 (3)).
     with:
       - identifier: e0
         h1dq:
-          log point: Hash First Degree Quads function (4.7.3).
+          log point: Hash First Degree Quads function (4.6.3).
           nquads:
             - _:a <http://example.com/#p1> _:z .
           hash: 24da9a4406b4e66dffa10ad3d4d6dddc388fbf193bb124e865158ef419893957
       - identifier: e1
         h1dq:
-          log point: Hash First Degree Quads function (4.7.3).
+          log point: Hash First Degree Quads function (4.6.3).
           nquads:
             - _:z <http://example.com/#p1> _:a .
             - _:a <http://example.com/#p2> "Foo" .
           hash: a994e40b576809985bc0f389308cd9d552fd7c89d028c163848a6b2d33a8583a
   ca.4:
-    log point: Create canonical replacements for hashes mapping to a single node (4.5.3 (4)).
+    log point: Create canonical replacements for hashes mapping to a single node (4.4.3 (4)).
     with:
       - identifier: e0
     hash: 24da9a4406b4e66dffa10ad3d4d6dddc388fbf193bb124e865158ef419893957
@@ -219,14 +217,19 @@ ca:
     hash: a994e40b576809985bc0f389308cd9d552fd7c89d028c163848a6b2d33a8583a
     canonical label: c14n1
   ca.5:
-    log point: Calculate hashes for identifiers with shared hashes (4.5.3 (5)).
+    log point: Calculate hashes for identifiers with shared hashes (4.4.3 (5)).
     with:
   ca.6:
-    log point: Replace original with canonical labels (4.5.3 (6)).
+    log point: Replace original with canonical labels (4.4.3 (6)).
     issued identifiers map: {e0: c14n0, e1: c14n1}
+    hndq_call_counter:  { counter: 0, limit: 4000 }
 ```
 
 ## Changelog
+
+### v0.10.0
+
+- add `*_quads` APIs to allow input in `Vec<quad>` instead of `Dataset`
 
 ### v0.9.1
 
