@@ -227,6 +227,10 @@ ca:
 
 ## Changelog
 
+### v0.10.1
+
+- Make `oxrdf` and `oxttl` point to specific commits on GitHub
+
 ### v0.10.0
 
 - add `*_quads` APIs to allow input in `Vec<quad>` instead of `Dataset`
