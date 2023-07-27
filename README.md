@@ -4,6 +4,7 @@
 
 A Rust implementation of the [RDF Dataset Canonicalization](https://www.w3.org/TR/rdf-canon/) algorithm.
 Its purpose is for understanding and evaluating the specification, and it's **not intended for production use**.
+Please be aware that it is currently very unstable, and breaking changes may occur without notice.
 
 ## Prerequisites
 
