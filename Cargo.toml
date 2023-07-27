@@ -1,7 +1,7 @@
 [package]
 name = "rdf-canon"
 authors = ["yamdan"]
-version = "0.10.1"
+version = "0.11.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,14 +9,14 @@ edition = "2021"
 [dependencies]
 base16ct = "0.2"
 itertools = "0.11"
-oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", version = "0.2.0-alpha.1-dev", rev = "db7fab0" }
+oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once next version of oxrdf is published on crates.io
 sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", optional = true }
 
 [dev-dependencies]
-oxttl = { git = "https://github.com/oxigraph/oxigraph.git", version = "0.1.0-alpha.1-dev", rev = "db7fab0" }
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once oxttl is published on crates.io
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 

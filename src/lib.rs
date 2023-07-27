@@ -9,6 +9,7 @@ pub use crate::api::{
     issue, issue_quads, issue_quads_with_options, issue_with_options, relabel, relabel_quads,
     CanonicalizationOptions,
 };
+pub use crate::canon::serialize;
 pub use crate::error::CanonicalizationError;
 #[cfg(feature = "log")]
 pub use crate::logger::YamlLayer;
