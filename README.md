@@ -7,18 +7,20 @@ Its purpose is for understanding and evaluating the specification, and it's **no
 
 ## Prerequisites
 
-- [Oxrdf and Oxttl (from `next` branch of Oxigraph)](https://github.com/oxigraph/oxigraph/tree/next): These libraries are used to parse N-Quads and handle RDF data structures. Please note that Oxttl is currently only available in the `next` branch of Oxigraph. We'll update this information when Oxigraph officially releases its next version.
+This implementation relies on the upcoming version of [Oxrdf](https://github.com/oxigraph/oxigraph/tree/next) for handling RDF data structures.
+If you aim to canonicalize N-Quads documents rather than Oxrdf Datasets, you'll additionally require [Oxttl](https://github.com/oxigraph/oxigraph/tree/next) for N-Quads parsing.
+Be aware that these crates are currently only accessible in the `next` branch of Oxigraph.
+We plan to update these Git dependencies once Oxigraph officially releases them on [crates.io](https://crates.io).
 
 ## Usage
 
 Add the following dependencies into your Cargo.toml:
-(**Current limitation**: dependency on `next` branch of Oxigraph to use `oxttl`; this will be updated once Oxigraph v0.4 is released)
 
 ```toml
 [dependencies]
 rdf-canon = { git = "https://github.com/yamdan/rdf-canon-rust.git" }
-oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
-oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
+oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once next version of oxrdf is published on crates.io
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once oxttl is published on crates.io
 ```
 
 You can then use the `rdf_canon::canonicalize` to convert OxRDF `Dataset` into canonical N-Quads.
@@ -226,6 +228,12 @@ ca:
 ```
 
 ## Changelog
+
+### v0.11.0
+
+- re-export `serialize` function to enable direct use by users
+- update `oxrdf` and `oxttl` dependencies
+- add more detailed explanation about `oxrdf` and `oxttl` dependencies to the README
 
 ### v0.10.1
 
