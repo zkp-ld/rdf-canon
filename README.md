@@ -19,7 +19,7 @@ Add the following dependencies into your Cargo.toml:
 
 ```toml
 [dependencies]
-rdf-canon = { git = "https://github.com/yamdan/rdf-canon-rust.git" }
+rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.11.0" }
 oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once next version of oxrdf is published on crates.io
 oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once oxttl is published on crates.io
 ```
@@ -135,7 +135,7 @@ The YAML-formatted debug log can be obtained by enabling the `log` feature.
 
 ```toml
 [dependencies]
-rdf-canon = { git = "https://github.com/yamdan/rdf-canon-rust.git", features = ["log"] }
+rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.11.0", features = ["log"] }
 oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
 ```
