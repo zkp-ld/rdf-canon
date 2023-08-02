@@ -5,9 +5,9 @@ pub mod error;
 #[cfg(feature = "log")]
 pub mod logger;
 pub use crate::api::{
-    canonicalize, canonicalize_quads, canonicalize_quads_with_options, canonicalize_with_options,
-    issue, issue_quads, issue_quads_with_options, issue_with_options, relabel, relabel_quads,
-    CanonicalizationOptions,
+    canonicalize, canonicalize_graph, canonicalize_graph_with, canonicalize_quads,
+    canonicalize_quads_with, canonicalize_with, issue, issue_graph, issue_graph_with, issue_quads,
+    issue_quads_with, issue_with, relabel, relabel_graph, relabel_quads, CanonicalizationOptions,
 };
 pub use crate::canon::serialize;
 pub use crate::error::CanonicalizationError;
