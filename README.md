@@ -159,13 +159,13 @@ As mentioned in [https://www.w3.org/TR/rdf-canon/#dataset-poisoning](https://www
 there are some malicious datasets that can cause the canonicalization algorithm to consume a large amount of computing time.
 We provide a call limit on the execution of the Hash N-Degree Quads algorithm to prevent it from running indefinitely due to poisoned data.
 The default limit is set to 4000.
-If you wish to raise or lower this limit, you can specify the limit using the `canonicalize_with_options` function as shown below.
+If you wish to raise or lower this limit, you can specify the limit using the `canonicalize_with` function as shown below.
 
 ```rust
 let options = CanonicalizationOptions {
     hndq_call_limit: Some(10000),
 };
-let canonicalized = canonicalize_with_options(&input_dataset, &options).unwrap();    
+let canonicalized = canonicalize_with(&input_dataset, &options).unwrap();    
 ```
 
 ### Debug Logging Feature
@@ -272,6 +272,7 @@ ca:
 ### v0.12.0
 
 - add `*_graph` APIs to allow `Graph` as input
+- rename `*_with_options` APIs with simplified `*_with`
 
 ### v0.11.0
 
