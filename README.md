@@ -19,12 +19,12 @@ Add the following dependencies into your Cargo.toml:
 
 ```toml
 [dependencies]
-rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.11.0" }
+rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.12.0" }
 oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once next version of oxrdf is published on crates.io
 oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once oxttl is published on crates.io
 ```
 
-You can then use the `rdf_canon::canonicalize` to convert OxRDF `Dataset` into canonical N-Quads.
+You can then use the `canonicalize` function to transform Oxrdf `Dataset` into canonical N-Quads.
 
 ### Example
 
@@ -34,14 +34,51 @@ use oxttl::NQuadsParser;
 use rdf_canon::canonicalize;
 use std::io::Cursor;
 
-let input = r#"<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .
-_:e0 <http://example.org/vocab#next> _:e1 .
+let input = r#"_:e0 <http://example.org/vocab#next> _:e1 _:g .
+_:e0 <http://example.org/vocab#prev> _:e2 _:g .
+_:e1 <http://example.org/vocab#next> _:e2 _:g .
+_:e1 <http://example.org/vocab#prev> _:e0 _:g .
+_:e2 <http://example.org/vocab#next> _:e0 _:g .
+_:e2 <http://example.org/vocab#prev> _:e1 _:g .
+<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" _:g .
+"#;
+
+let expected = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" _:c14n0 .
+_:c14n1 <http://example.org/vocab#next> _:c14n2 _:c14n0 .
+_:c14n1 <http://example.org/vocab#prev> _:c14n3 _:c14n0 .
+_:c14n2 <http://example.org/vocab#next> _:c14n3 _:c14n0 .
+_:c14n2 <http://example.org/vocab#prev> _:c14n1 _:c14n0 .
+_:c14n3 <http://example.org/vocab#next> _:c14n1 _:c14n0 .
+_:c14n3 <http://example.org/vocab#prev> _:c14n2 _:c14n0 .
+"#;
+
+let input_quads = NQuadsParser::new()
+    .parse_from_read(Cursor::new(input))
+    .into_iter()
+    .map(|x| x.unwrap());
+let input_dataset = Dataset::from_iter(input_quads);
+let canonicalized = canonicalize(&input_dataset).unwrap();
+
+assert_eq!(canonicalized, expected);
+```
+
+ Alternatively, `canonicalize_graph` and `canonicalize_quads` are available for canonicalizing a `Graph` and `Vec<Quad>`, respectively.
+
+```rust
+use oxrdf::Graph;
+use oxttl::NTriplesParser;
+use rdf_canon::canonicalize_graph;
+use std::io::Cursor;
+
+let input = r#"_:e0 <http://example.org/vocab#next> _:e1 .
 _:e0 <http://example.org/vocab#prev> _:e2 .
 _:e1 <http://example.org/vocab#next> _:e2 .
 _:e1 <http://example.org/vocab#prev> _:e0 .
 _:e2 <http://example.org/vocab#next> _:e0 .
 _:e2 <http://example.org/vocab#prev> _:e1 .
+<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" .
 "#;
+
 let expected = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" .
 _:c14n0 <http://example.org/vocab#next> _:c14n2 .
 _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
@@ -51,12 +88,12 @@ _:c14n2 <http://example.org/vocab#next> _:c14n1 .
 _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 "#;
 
-let input_quads = NQuadsParser::new()
+let input_triples = NTriplesParser::new()
     .parse_from_read(Cursor::new(input))
     .into_iter()
     .map(|x| x.unwrap());
-let input_dataset = Dataset::from_iter(input_quads);
-let canonicalized = canonicalize(&input_dataset).unwrap();
+let input_graph = Graph::from_iter(input_triples);
+let canonicalized = canonicalize_graph(&input_graph).unwrap();
 
 assert_eq!(canonicalized, expected);
 ```
@@ -91,17 +128,19 @@ use std::collections::HashMap;
 use std::io::Cursor;
 
 let input = r#"
-_:e0 <http://example.org/vocab#next> _:e1 .
-_:e0 <http://example.org/vocab#prev> _:e2 .
-_:e1 <http://example.org/vocab#next> _:e2 .
-_:e1 <http://example.org/vocab#prev> _:e0 .
-_:e2 <http://example.org/vocab#next> _:e0 .
-_:e2 <http://example.org/vocab#prev> _:e1 .
+_:e0 <http://example.org/vocab#next> _:e1 _:g .
+_:e0 <http://example.org/vocab#prev> _:e2 _:g .
+_:e1 <http://example.org/vocab#next> _:e2 _:g .
+_:e1 <http://example.org/vocab#prev> _:e0 _:g .
+_:e2 <http://example.org/vocab#next> _:e0 _:g .
+_:e2 <http://example.org/vocab#prev> _:e1 _:g .
 "#;
+
 let expected = HashMap::from([
-    ("e0".to_string(), "c14n0".to_string()),
+    ("g".to_string(), "c14n0".to_string()),
+    ("e0".to_string(), "c14n1".to_string()),
     ("e1".to_string(), "c14n2".to_string()),
-    ("e2".to_string(), "c14n1".to_string()),
+    ("e2".to_string(), "c14n3".to_string()),
 ]);
 
 let input_quads = NQuadsParser::new()
@@ -135,9 +174,9 @@ The YAML-formatted debug log can be obtained by enabling the `log` feature.
 
 ```toml
 [dependencies]
-rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.11.0", features = ["log"] }
-oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
-oxttl = { git = "https://github.com/oxigraph/oxigraph.git", branch = "next" }
+rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.12.0", features = ["log"]  }
+oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once next version of oxrdf is published on crates.io
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once oxttl is published on crates.io
 ```
 
 ```rust
@@ -229,6 +268,10 @@ ca:
 ```
 
 ## Changelog
+
+### v0.12.0
+
+- add `*_graph` APIs to allow `Graph` as input
 
 ### v0.11.0
 
