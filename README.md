@@ -2,7 +2,7 @@
 
 **WORK IN PROGRESS**
 
-A Rust implementation of the [RDF Dataset Canonicalization](https://www.w3.org/TR/rdf-canon/) algorithm.
+A Rust implementation of the [RDF Canonicalization algorithm version 1.0 (RDFC-1.0)](https://www.w3.org/TR/rdf-canon/).
 Its purpose is for understanding and evaluating the specification, and it's **not intended for production use**.
 Please be aware that it is currently very unstable, and breaking changes may occur without notice.
 
@@ -62,7 +62,12 @@ let canonicalized = canonicalize(&input_dataset).unwrap();
 assert_eq!(canonicalized, expected);
 ```
 
- Alternatively, `canonicalize_graph` and `canonicalize_quads` are available for canonicalizing a `Graph` and `Vec<Quad>`, respectively.
+## Advanced Usage
+
+### Canonicalizing Graph and Quads
+
+We provide `canonicalize_graph` and `canonicalize_quads` functions to canonicalize a `Graph` and `Vec<Quad>`, respectively.
+For example, you can canonicalize RDF graph using `canonicalize_graph` as follows:
 
 ```rust
 use oxrdf::Graph;
@@ -98,11 +103,13 @@ let canonicalized = canonicalize_graph(&input_graph).unwrap();
 assert_eq!(canonicalized, expected);
 ```
 
-## Advanced Usage
+Here, we interpret the input graph as a dataset that includes it as the default graph,
+then execute the canonicalization algorithm.
+The output is the default graph obtained from the resulting canonicalized dataset.
 
 ### Canonicalized Dataset
 
-The canonicalization algorithm can also return a [canonicalized dataset](https://www.w3.org/TR/rdf-canon/#dfn-canonicalized-dataset).
+The canonicalization algorithm can also return a [canonicalized dataset](https://www.w3.org/TR/rdf-canon/#dfn-canonicalized-dataset) instead of a serialized canonical N-Quads.
 
 [RDF Dataset Canonicalization](https://www.w3.org/TR/rdf-canon/)
 
