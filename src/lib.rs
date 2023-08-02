@@ -7,7 +7,8 @@ pub mod logger;
 pub use crate::api::{
     canonicalize, canonicalize_graph, canonicalize_graph_with, canonicalize_quads,
     canonicalize_quads_with, canonicalize_with, issue, issue_graph, issue_graph_with, issue_quads,
-    issue_quads_with, issue_with, relabel, relabel_graph, relabel_quads, CanonicalizationOptions,
+    issue_quads_with, issue_with, relabel, relabel_graph, relabel_quads, sort, sort_graph,
+    CanonicalizationOptions,
 };
 pub use crate::canon::serialize;
 pub use crate::error::CanonicalizationError;

@@ -566,6 +566,7 @@ pub fn issue_quads_with(
 }
 
 /// Re-label blank node identifiers in the input dataset according to the issued identifiers map.
+/// Note that the output `Dataset` does not retain the order of quads, unlike `Vec<Quad>`.
 ///
 /// # Examples
 ///
@@ -624,6 +625,7 @@ pub fn relabel(
 }
 
 /// Re-label blank node identifiers in the input graph according to the issued identifiers map.
+/// Note that the output `Graph` does not retain the order of triples, unlike `Vec<Triple>`.
 ///
 /// # Examples
 ///
@@ -815,4 +817,113 @@ fn relabel_blank_node(
         Some(id) => Ok(BlankNode::new(id)?),
         None => Err(CanonicalizationError::CanonicalIdentifierNotExist),
     }
+}
+
+/// Sort each quad from the canonicalized dataset into code point order.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::{Dataset, Quad};
+/// use oxttl::NQuadsParser;
+/// use rdf_canon::{relabel, sort};
+/// use std::collections::HashMap;
+/// use std::io::Cursor;
+///
+/// let input = r#"
+/// _:e0 <http://example.org/vocab#next> _:e1 _:g .
+/// _:e0 <http://example.org/vocab#prev> _:e2 _:g .
+/// _:e1 <http://example.org/vocab#next> _:e2 _:g .
+/// _:e1 <http://example.org/vocab#prev> _:e0 _:g .
+/// _:e2 <http://example.org/vocab#next> _:e0 _:g .
+/// _:e2 <http://example.org/vocab#prev> _:e1 _:g .
+/// "#;
+/// let issued_identifiers_map = HashMap::from([
+///     ("g".to_string(), "c14n0".to_string()),
+///     ("e0".to_string(), "c14n1".to_string()),
+///     ("e1".to_string(), "c14n2".to_string()),
+///     ("e2".to_string(), "c14n3".to_string()),
+/// ]);
+/// let expected = r#"
+/// _:c14n1 <http://example.org/vocab#next> _:c14n2 _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#prev> _:c14n3 _:c14n0 .
+/// _:c14n2 <http://example.org/vocab#next> _:c14n3 _:c14n0 .
+/// _:c14n2 <http://example.org/vocab#prev> _:c14n1 _:c14n0 .
+/// _:c14n3 <http://example.org/vocab#next> _:c14n1 _:c14n0 .
+/// _:c14n3 <http://example.org/vocab#prev> _:c14n2 _:c14n0 .
+/// "#;
+///
+/// let input_quads = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(input))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let input_dataset = Dataset::from_iter(input_quads);
+/// let labeled_dataset = relabel(&input_dataset, &issued_identifiers_map).unwrap();
+/// let canonicalized_quads = sort(&labeled_dataset);
+/// let expected_quads: Vec<Quad> = NQuadsParser::new()
+///     .parse_from_read(Cursor::new(expected))
+///     .into_iter()
+///     .map(|x| x.unwrap())
+///     .collect();
+///
+/// assert_eq!(canonicalized_quads, expected_quads);
+/// ```
+pub fn sort(dataset: &Dataset) -> Vec<Quad> {
+    let mut ordered_dataset: Vec<QuadRef> = dataset.iter().collect();
+    ordered_dataset.sort_by_cached_key(|q| q.to_string());
+    ordered_dataset.iter().map(|q| q.into_owned()).collect()
+}
+
+/// Sort each triple from the canonicalized graph into code point order.
+///
+/// # Examples
+///
+/// ```
+/// use oxrdf::{Graph, Triple};
+/// use oxttl::NTriplesParser;
+/// use rdf_canon::{relabel_graph, sort_graph};
+/// use std::collections::HashMap;
+/// use std::io::Cursor;
+///
+/// let input = r#"
+/// _:e0 <http://example.org/vocab#next> _:e1 .
+/// _:e0 <http://example.org/vocab#prev> _:e2 .
+/// _:e1 <http://example.org/vocab#next> _:e2 .
+/// _:e1 <http://example.org/vocab#prev> _:e0 .
+/// _:e2 <http://example.org/vocab#next> _:e0 .
+/// _:e2 <http://example.org/vocab#prev> _:e1 .
+/// "#;
+/// let issued_identifiers_map = HashMap::from([
+///     ("e0".to_string(), "c14n0".to_string()),
+///     ("e1".to_string(), "c14n2".to_string()),
+///     ("e2".to_string(), "c14n1".to_string()),
+/// ]);
+/// let expected = r#"
+/// _:c14n0 <http://example.org/vocab#next> _:c14n2 .
+/// _:c14n0 <http://example.org/vocab#prev> _:c14n1 .
+/// _:c14n1 <http://example.org/vocab#next> _:c14n0 .
+/// _:c14n1 <http://example.org/vocab#prev> _:c14n2 .
+/// _:c14n2 <http://example.org/vocab#next> _:c14n1 .
+/// _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
+/// "#;
+///
+/// let input_triples = NTriplesParser::new()
+///     .parse_from_read(Cursor::new(input))
+///     .into_iter()
+///     .map(|x| x.unwrap());
+/// let input_graph = Graph::from_iter(input_triples);
+/// let labeled_graph = relabel_graph(&input_graph, &issued_identifiers_map).unwrap();
+/// let canonicalized_triples = sort_graph(&labeled_graph);
+/// let expected_triples: Vec<Triple> = NTriplesParser::new()
+///     .parse_from_read(Cursor::new(expected))
+///     .into_iter()
+///     .map(|x| x.unwrap())
+///     .collect();
+///
+/// assert_eq!(canonicalized_triples, expected_triples);
+/// ```
+pub fn sort_graph(graph: &Graph) -> Vec<Triple> {
+    let mut ordered_graph: Vec<TripleRef> = graph.iter().collect();
+    ordered_graph.sort_by_cached_key(|t| t.to_string());
+    ordered_graph.iter().map(|t| t.into_owned()).collect()
 }
