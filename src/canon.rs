@@ -5,7 +5,8 @@ use crate::{
 use base16ct::lower::encode_str;
 use itertools::Itertools;
 use oxrdf::{
-    BlankNode, Dataset, GraphName, GraphNameRef, Quad, QuadRef, Subject, SubjectRef, Term, TermRef,
+    BlankNode, Dataset, Graph, GraphName, GraphNameRef, Quad, QuadRef, Subject, SubjectRef, Term,
+    TermRef, TripleRef,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
@@ -1147,6 +1148,15 @@ pub fn serialize(dataset: &Dataset) -> String {
     ordered_dataset
         .iter()
         .map(|q| q.to_string() + " .\n")
+        .collect()
+}
+
+pub fn serialize_graph(graph: &Graph) -> String {
+    let mut ordered_graph: Vec<TripleRef> = graph.iter().collect();
+    ordered_graph.sort_by_cached_key(|t| t.to_string());
+    ordered_graph
+        .iter()
+        .map(|t| t.to_string() + " .\n")
         .collect()
 }
 
