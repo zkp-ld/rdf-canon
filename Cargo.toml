@@ -3,6 +3,10 @@ name = "rdf-canon"
 authors = ["yamdan"]
 version = "0.13.0"
 edition = "2021"
+description = "A Rust implementation of the RDF Dataset Canonicalization algorithm version 1.0 (RDFC-1.0) compatible with Oxigraph and Oxrdf."
+homepage = "https://github.com/zkp-ld/rdf-canon"
+repository = "https://github.com/zkp-ld/rdf-canon"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
