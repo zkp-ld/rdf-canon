@@ -2,13 +2,12 @@ use crate::{
     counter::{HndqCallCounter, SimpleHndqCallCounter},
     error::CanonicalizationError,
 };
-use base16ct::lower::encode_str;
+use digest::Digest;
 use itertools::Itertools;
 use oxrdf::{
     BlankNode, Dataset, Graph, GraphName, GraphNameRef, Quad, QuadRef, Subject, SubjectRef, Term,
     TermRef, TripleRef,
 };
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 
 #[cfg(feature = "log")]
@@ -186,23 +185,15 @@ impl IdentifierIssuer {
 ///   The lowercase, hexadecimal representation of a message digest.
 /// **hash algorithm**
 ///   The hash algorithm used by URDNA2015, namely, SHA-256.
-fn hash(data: impl AsRef<[u8]>) -> Result<String, CanonicalizationError> {
-    const HASH_LEN: usize = 32;
-    const HASH_BUF_LEN: usize = HASH_LEN * 2;
-
-    let hash = Sha256::digest(data);
-    let mut buf = [0u8; HASH_BUF_LEN];
-    let hex_hash = encode_str(&hash, &mut buf);
-    match hex_hash {
-        Ok(h) => Ok(h.to_string()),
-        Err(e) => Err(CanonicalizationError::Base16EncodingFailed(e)),
-    }
+fn hash<D: Digest>(data: impl AsRef<[u8]>) -> String {
+    let hash = D::digest(data);
+    base16ct::lower::encode_string(&hash)
 }
 
 /// **4.4 Canonicalization Algorithm**
 /// The canonicalization algorithm converts an input dataset into a canonicalized dataset.
 /// This algorithm will assign deterministic identifiers to any blank nodes in the input dataset.
-pub fn canonicalize_core(
+pub fn canonicalize_core<D: Digest>(
     input_dataset: &Dataset,
     mut hndq_call_counter: SimpleHndqCallCounter,
 ) -> Result<HashMap<String, String>, CanonicalizationError> {
@@ -260,7 +251,7 @@ pub fn canonicalize_core(
         #[cfg(feature = "log")]
         let span_ca_3_1 = debug_span!("", indent = 1).entered();
 
-        let hash = hash_first_degree_quads(&state, n).unwrap();
+        let hash = hash_first_degree_quads::<D>(&state, n).unwrap();
 
         #[cfg(feature = "log")]
         span_ca_3_1.exit();
@@ -370,8 +361,12 @@ pub fn canonicalize_core(
             #[cfg(feature = "log")]
             let span_ca_5_2_4 = debug_span!("", indent = 1).entered();
 
-            let result =
-                hash_n_degree_quads(&state, n.clone(), &temporary_issuer, &mut hndq_call_counter)?;
+            let result = hash_n_degree_quads::<D>(
+                &state,
+                n.clone(),
+                &temporary_issuer,
+                &mut hndq_call_counter,
+            )?;
 
             #[cfg(feature = "log")]
             span_ca_5_2_4.exit();
@@ -493,7 +488,7 @@ pub fn canonicalize_core(
 /// **4.6.3 Algorithm**
 ///   This algorithm takes the canonicalization state and a reference blank node
 ///   identifier as inputs.
-fn hash_first_degree_quads(
+fn hash_first_degree_quads<D: Digest>(
     canonicalization_state: &CanonicalizationState,
     reference_blank_node_identifier: &String,
 ) -> Result<String, CanonicalizationError> {
@@ -576,12 +571,12 @@ fn hash_first_degree_quads(
 
     // 5) Return the hash that results from passing the sorted and concatenated
     // nquads through the hash algorithm.
-    let hashed_nquads = hash(nquads.join(""));
+    let hashed_nquads = hash::<D>(nquads.join(""));
 
     #[cfg(feature = "log")]
-    debug!("hash: {}", hashed_nquads.clone().unwrap_or_default());
+    debug!("hash: {}", hashed_nquads);
 
-    hashed_nquads
+    Ok(hashed_nquads)
 }
 
 enum HashRelatedBlankNodePosition {
@@ -604,7 +599,7 @@ impl HashRelatedBlankNodePosition {
 ///   its position within that quad. This is used as part of the Hash N-Degree Quads
 ///   algorithm to characterize the blank nodes related to some particular blank node within
 ///   their mention sets.
-fn hash_related_blank_node(
+fn hash_related_blank_node<D: Digest>(
     state: &CanonicalizationState,
     related: &String,
     quad: &Quad,
@@ -637,7 +632,7 @@ fn hash_related_blank_node(
             Some(id) => format!("_:{}", id),
             // 4) Otherwise, append the result of the Hash First Degree Quads algorithm,
             // passing related to input.
-            None => hash_first_degree_quads(state, related)?,
+            None => hash_first_degree_quads::<D>(state, related)?,
         },
     };
 
@@ -650,12 +645,12 @@ fn hash_related_blank_node(
     debug!(indent = 1, "input: \"{}\"", input);
 
     // 5) Return the hash that results from passing input through the hash algorithm.
-    let output = hash(input);
+    let output = hash::<D>(input);
 
     #[cfg(feature = "log")]
-    debug!(indent = 1, "hash: {}", output.clone().unwrap_or_default());
+    debug!(indent = 1, "hash: {}", output);
 
-    output
+    Ok(output)
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -688,7 +683,7 @@ impl Ord for HashNDegreeQuadsResult {
 ///   blank node to recursively hash quads for, and path identifier issuer which is an
 ///   identifier issuer that issues temporary blank node identifiers. The output from this
 ///   algorithm will be a hash and the identifier issuer used to help generate it.
-fn hash_n_degree_quads(
+fn hash_n_degree_quads<D: Digest>(
     state: &CanonicalizationState,
     identifier: String,
     path_identifier_issuer: &IdentifierIssuer,
@@ -780,7 +775,7 @@ fn hash_n_degree_quads(
                     span_hndq_3_1_flag = true;
                 }
 
-                let hash = hash_related_blank_node(
+                let hash = hash_related_blank_node::<D>(
                     state,
                     &bnode_id,
                     quad,
@@ -811,7 +806,7 @@ fn hash_n_degree_quads(
                     span_hndq_3_1_flag = true;
                 }
 
-                let hash = hash_related_blank_node(
+                let hash = hash_related_blank_node::<D>(
                     state,
                     &bnode_id,
                     quad,
@@ -841,7 +836,7 @@ fn hash_n_degree_quads(
                     debug!("with:");
                 }
 
-                let hash = hash_related_blank_node(
+                let hash = hash_related_blank_node::<D>(
                     state,
                     &bnode_id,
                     quad,
@@ -1019,7 +1014,7 @@ fn hash_n_degree_quads(
                 let span_hndq_5_4_5_1 = debug_span!("", indent = 1).entered();
 
                 let result =
-                    hash_n_degree_quads(state, related.clone(), &issuer_copy, call_counter)?;
+                    hash_n_degree_quads::<D>(state, related.clone(), &issuer_copy, call_counter)?;
 
                 #[cfg(feature = "log")]
                 span_hndq_5_4_5_1.exit();
@@ -1117,7 +1112,7 @@ fn hash_n_degree_quads(
     )
     .entered();
 
-    let hash = hash(data_to_hash.join(""))?;
+    let hash = hash::<D>(data_to_hash.join(""));
 
     #[cfg(feature = "log")]
     {
@@ -1163,6 +1158,7 @@ pub fn serialize_graph(graph: &Graph) -> String {
 #[cfg(test)]
 mod tests {
     use oxrdf::{BlankNode, NamedNode, NamedNodeRef};
+    use sha2::Sha256;
 
     use super::*;
 
@@ -1221,12 +1217,12 @@ mod tests {
 
         state.update_blank_node_to_quads_map(&input_dataset);
 
-        let hash_e0 = hash_first_degree_quads(&state, &e0.as_str().to_string());
+        let hash_e0 = hash_first_degree_quads::<Sha256>(&state, &e0.as_str().to_string());
         assert_eq!(
             hash_e0.unwrap(),
             "21d1dd5ba21f3dee9d76c0c00c260fa6f5d5d65315099e553026f4828d0dc77a".to_string()
         );
-        let hash_e1 = hash_first_degree_quads(&state, &e1.as_str().to_string());
+        let hash_e1 = hash_first_degree_quads::<Sha256>(&state, &e1.as_str().to_string());
         assert_eq!(
             hash_e1.unwrap(),
             "6fa0b9bdb376852b5743ff39ca4cbf7ea14d34966b2828478fbf222e7c764473".to_string()
@@ -1282,22 +1278,22 @@ mod tests {
 
         state.update_blank_node_to_quads_map(&input_dataset);
 
-        let hash_e0 = hash_first_degree_quads(&state, &e0.as_str().to_string());
+        let hash_e0 = hash_first_degree_quads::<Sha256>(&state, &e0.as_str().to_string());
         assert_eq!(
             hash_e0.unwrap(),
             "3b26142829b8887d011d779079a243bd61ab53c3990d550320a17b59ade6ba36".to_string()
         );
-        let hash_e1 = hash_first_degree_quads(&state, &e1.as_str().to_string());
+        let hash_e1 = hash_first_degree_quads::<Sha256>(&state, &e1.as_str().to_string());
         assert_eq!(
             hash_e1.unwrap(),
             "3b26142829b8887d011d779079a243bd61ab53c3990d550320a17b59ade6ba36".to_string()
         );
-        let hash_e2 = hash_first_degree_quads(&state, &e2.as_str().to_string());
+        let hash_e2 = hash_first_degree_quads::<Sha256>(&state, &e2.as_str().to_string());
         assert_eq!(
             hash_e2.unwrap(),
             "15973d39de079913dac841ac4fa8c4781c0febfba5e83e5c6e250869587f8659".to_string()
         );
-        let hash_e3 = hash_first_degree_quads(&state, &e3.as_str().to_string());
+        let hash_e3 = hash_first_degree_quads::<Sha256>(&state, &e3.as_str().to_string());
         assert_eq!(
             hash_e3.unwrap(),
             "7e790a99273eed1dc57e43205d37ce232252c85b26ca4a6ff74ff3b5aea7bccd".to_string()
@@ -1323,7 +1319,7 @@ mod tests {
             GraphName::DefaultGraph,
         );
         let related_hash =
-            hash_related_blank_node(&state, &"e2".to_string(), &quad, &issuer, position);
+            hash_related_blank_node::<Sha256>(&state, &"e2".to_string(), &quad, &issuer, position);
         assert_eq!(
             related_hash.unwrap(),
             "29cf7e22790bc2ed395b81b3933e5329fc7b25390486085cac31ce7252ca60fa".to_string()
@@ -1380,7 +1376,7 @@ mod tests {
         state.update_blank_node_to_quads_map(&input_dataset);
 
         for (n, _quads) in state.blank_node_to_quads_map.iter() {
-            let hash = hash_first_degree_quads(&state, n).unwrap();
+            let hash = hash_first_degree_quads::<Sha256>(&state, n).unwrap();
             state
                 .hash_to_blank_node_map
                 .entry(hash)
@@ -1408,7 +1404,7 @@ mod tests {
                 let mut temporary_issuer = IdentifierIssuer::new("b");
                 temporary_issuer.issue(n);
                 let mut hndq_call_counter = SimpleHndqCallCounter::default();
-                let result = hash_n_degree_quads(
+                let result = hash_n_degree_quads::<Sha256>(
                     &state,
                     n.clone(),
                     &temporary_issuer,

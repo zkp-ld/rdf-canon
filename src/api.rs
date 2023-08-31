@@ -3,10 +3,12 @@ use crate::{
     counter::{HndqCallCounter, SimpleHndqCallCounter},
     CanonicalizationError,
 };
+use digest::Digest;
 use oxrdf::{
     BlankNode, BlankNodeRef, Dataset, Graph, GraphName, GraphNameRef, Quad, QuadRef, Subject,
     SubjectRef, Term, TermRef, Triple, TripleRef,
 };
+use sha2::Sha256;
 use std::collections::HashMap;
 
 /// Returns the serialized canonical form of the canonicalized dataset,
@@ -48,7 +50,7 @@ use std::collections::HashMap;
 /// ```
 pub fn canonicalize(input_dataset: &Dataset) -> Result<String, CanonicalizationError> {
     let options = CanonicalizationOptions::default();
-    canonicalize_with(input_dataset, &options)
+    canonicalize_with::<Sha256>(input_dataset, &options)
 }
 
 /// Returns the serialized canonical form of the canonicalized dataset,
@@ -90,7 +92,7 @@ pub fn canonicalize(input_dataset: &Dataset) -> Result<String, CanonicalizationE
 /// ```
 pub fn canonicalize_graph(input_graph: &Graph) -> Result<String, CanonicalizationError> {
     let options = CanonicalizationOptions::default();
-    canonicalize_graph_with(input_graph, &options)
+    canonicalize_graph_with::<Sha256>(input_graph, &options)
 }
 
 /// Returns the serialized canonical form of the canonicalized dataset,
@@ -132,7 +134,7 @@ pub fn canonicalize_graph(input_graph: &Graph) -> Result<String, Canonicalizatio
 /// ```
 pub fn canonicalize_quads(input_quads: &[Quad]) -> Result<String, CanonicalizationError> {
     let options = CanonicalizationOptions::default();
-    canonicalize_quads_with(input_quads, &options)
+    canonicalize_quads_with::<Sha256>(input_quads, &options)
 }
 
 #[derive(Default)]
@@ -150,6 +152,7 @@ pub struct CanonicalizationOptions {
 /// use oxrdf::Dataset;
 /// use oxttl::NQuadsParser;
 /// use rdf_canon::{canonicalize_with, CanonicalizationOptions};
+/// use sha2::Sha256;
 /// use std::io::Cursor;
 
 /// let input = r#"_:e0 <http://example.org/vocab#next> _:e1 _:g .
@@ -177,15 +180,15 @@ pub struct CanonicalizationOptions {
 /// let options = CanonicalizationOptions {
 ///     hndq_call_limit: Some(10000),
 /// };
-/// let canonicalized = canonicalize_with(&input_dataset, &options).unwrap();
+/// let canonicalized = canonicalize_with::<Sha256>(&input_dataset, &options).unwrap();
 ///
 /// assert_eq!(canonicalized, expected);
 /// ```
-pub fn canonicalize_with(
+pub fn canonicalize_with<D: Digest>(
     input_dataset: &Dataset,
     options: &CanonicalizationOptions,
 ) -> Result<String, CanonicalizationError> {
-    let issued_identifiers_map = issue_with(input_dataset, options)?;
+    let issued_identifiers_map = issue_with::<D>(input_dataset, options)?;
     let relabeled_dataset = relabel(input_dataset, &issued_identifiers_map)?;
     Ok(serialize(&relabeled_dataset))
 }
@@ -200,6 +203,7 @@ pub fn canonicalize_with(
 /// use oxrdf::Graph;
 /// use oxttl::NTriplesParser;
 /// use rdf_canon::{canonicalize_graph_with, CanonicalizationOptions};
+/// use sha2::Sha256;
 /// use std::io::Cursor;
 
 /// let input = r#"_:e0 <http://example.org/vocab#next> _:e1 .
@@ -227,15 +231,15 @@ pub fn canonicalize_with(
 /// let options = CanonicalizationOptions {
 ///     hndq_call_limit: Some(10000),
 /// };
-/// let canonicalized = canonicalize_graph_with(&input_graph, &options).unwrap();
+/// let canonicalized = canonicalize_graph_with::<Sha256>(&input_graph, &options).unwrap();
 ///
 /// assert_eq!(canonicalized, expected);
 /// ```
-pub fn canonicalize_graph_with(
+pub fn canonicalize_graph_with<D: Digest>(
     input_graph: &Graph,
     options: &CanonicalizationOptions,
 ) -> Result<String, CanonicalizationError> {
-    let issued_identifiers_map = issue_graph_with(input_graph, options)?;
+    let issued_identifiers_map = issue_graph_with::<D>(input_graph, options)?;
     let relabeled_graph = relabel_graph(input_graph, &issued_identifiers_map)?;
     Ok(serialize_graph(&relabeled_graph))
 }
@@ -250,6 +254,7 @@ pub fn canonicalize_graph_with(
 /// use oxrdf::Quad;
 /// use oxttl::NQuadsParser;
 /// use rdf_canon::{canonicalize_quads_with, CanonicalizationOptions};
+/// use sha2::Sha256;
 /// use std::io::Cursor;
 
 /// let input = r#"_:e0 <http://example.org/vocab#next> _:e1 _:g .
@@ -277,16 +282,16 @@ pub fn canonicalize_graph_with(
 /// let options = CanonicalizationOptions {
 ///     hndq_call_limit: Some(10000),
 /// };
-/// let canonicalized = canonicalize_quads_with(&input_quads, &options).unwrap();
+/// let canonicalized = canonicalize_quads_with::<Sha256>(&input_quads, &options).unwrap();
 ///
 /// assert_eq!(canonicalized, expected);
 /// ```
-pub fn canonicalize_quads_with(
+pub fn canonicalize_quads_with<D: Digest>(
     input_quads: &[Quad],
     options: &CanonicalizationOptions,
 ) -> Result<String, CanonicalizationError> {
     let input_dataset = Dataset::from_iter(input_quads);
-    let issued_identifiers_map = issue_with(&input_dataset, options)?;
+    let issued_identifiers_map = issue_with::<D>(&input_dataset, options)?;
     let relabeled_dataset = relabel(&input_dataset, &issued_identifiers_map)?;
     Ok(serialize(&relabeled_dataset))
 }
@@ -329,7 +334,7 @@ pub fn canonicalize_quads_with(
 /// ```
 pub fn issue(input_dataset: &Dataset) -> Result<HashMap<String, String>, CanonicalizationError> {
     let options = CanonicalizationOptions::default();
-    issue_with(input_dataset, &options)
+    issue_with::<Sha256>(input_dataset, &options)
 }
 
 /// Assigns deterministic identifiers to any blank nodes in the input graph
@@ -369,7 +374,7 @@ pub fn issue(input_dataset: &Dataset) -> Result<HashMap<String, String>, Canonic
 /// ```
 pub fn issue_graph(input_graph: &Graph) -> Result<HashMap<String, String>, CanonicalizationError> {
     let options = CanonicalizationOptions::default();
-    issue_graph_with(input_graph, &options)
+    issue_graph_with::<Sha256>(input_graph, &options)
 }
 
 /// Assigns deterministic identifiers to any blank nodes in the input quads
@@ -410,7 +415,7 @@ pub fn issue_graph(input_graph: &Graph) -> Result<HashMap<String, String>, Canon
 /// ```
 pub fn issue_quads(input_quads: &[Quad]) -> Result<HashMap<String, String>, CanonicalizationError> {
     let options = CanonicalizationOptions::default();
-    issue_quads_with(input_quads, &options)
+    issue_quads_with::<Sha256>(input_quads, &options)
 }
 
 /// Given some options (e.g., call limit),
@@ -423,6 +428,7 @@ pub fn issue_quads(input_quads: &[Quad]) -> Result<HashMap<String, String>, Cano
 /// use oxrdf::Dataset;
 /// use oxttl::NQuadsParser;
 /// use rdf_canon::{issue_with, CanonicalizationOptions};
+/// use sha2::Sha256;
 /// use std::collections::HashMap;
 /// use std::io::Cursor;
 ///
@@ -450,16 +456,16 @@ pub fn issue_quads(input_quads: &[Quad]) -> Result<HashMap<String, String>, Cano
 ///     hndq_call_limit: Some(10000),
 /// };
 ///
-/// let issued_identifiers_map = issue_with(&input_dataset, &options).unwrap();
+/// let issued_identifiers_map = issue_with::<Sha256>(&input_dataset, &options).unwrap();
 ///
 /// assert_eq!(issued_identifiers_map, expected_map);
 /// ```
-pub fn issue_with(
+pub fn issue_with<D: Digest>(
     input_dataset: &Dataset,
     options: &CanonicalizationOptions,
 ) -> Result<HashMap<String, String>, CanonicalizationError> {
     let hndq_call_counter = SimpleHndqCallCounter::new(options.hndq_call_limit);
-    canonicalize_core(input_dataset, hndq_call_counter)
+    canonicalize_core::<D>(input_dataset, hndq_call_counter)
 }
 
 /// Given some options (e.g., call limit),
@@ -472,6 +478,7 @@ pub fn issue_with(
 /// use oxrdf::Graph;
 /// use oxttl::NTriplesParser;
 /// use rdf_canon::{issue_graph_with, CanonicalizationOptions};
+/// use sha2::Sha256;
 /// use std::collections::HashMap;
 /// use std::io::Cursor;
 ///
@@ -498,11 +505,11 @@ pub fn issue_with(
 ///     hndq_call_limit: Some(10000),
 /// };
 ///
-/// let issued_identifiers_map = issue_graph_with(&input_graph, &options).unwrap();
+/// let issued_identifiers_map = issue_graph_with::<Sha256>(&input_graph, &options).unwrap();
 ///
 /// assert_eq!(issued_identifiers_map, expected_map);
 /// ```
-pub fn issue_graph_with(
+pub fn issue_graph_with<D: Digest>(
     input_graph: &Graph,
     options: &CanonicalizationOptions,
 ) -> Result<HashMap<String, String>, CanonicalizationError> {
@@ -512,7 +519,7 @@ pub fn issue_graph_with(
             .iter()
             .map(|t| QuadRef::new(t.subject, t.predicate, t.object, GraphNameRef::DefaultGraph)),
     );
-    canonicalize_core(&input_dataset, hndq_call_counter)
+    canonicalize_core::<D>(&input_dataset, hndq_call_counter)
 }
 
 /// Given some options (e.g., call limit),
@@ -525,6 +532,7 @@ pub fn issue_graph_with(
 /// use oxrdf::Quad;
 /// use oxttl::NQuadsParser;
 /// use rdf_canon::{issue_quads_with, CanonicalizationOptions};
+/// use sha2::Sha256;
 /// use std::collections::HashMap;
 /// use std::io::Cursor;
 ///
@@ -552,17 +560,17 @@ pub fn issue_graph_with(
 ///     hndq_call_limit: Some(10000),
 /// };
 ///
-/// let issued_identifiers_map = issue_quads_with(&input_quads, &options).unwrap();
+/// let issued_identifiers_map = issue_quads_with::<Sha256>(&input_quads, &options).unwrap();
 ///
 /// assert_eq!(issued_identifiers_map, expected_map);
 /// ```
-pub fn issue_quads_with(
+pub fn issue_quads_with<D: Digest>(
     input_quads: &[Quad],
     options: &CanonicalizationOptions,
 ) -> Result<HashMap<String, String>, CanonicalizationError> {
     let input_dataset = Dataset::from_iter(input_quads);
     let hndq_call_counter = SimpleHndqCallCounter::new(options.hndq_call_limit);
-    canonicalize_core(&input_dataset, hndq_call_counter)
+    canonicalize_core::<D>(&input_dataset, hndq_call_counter)
 }
 
 /// Re-label blank node identifiers in the input dataset according to the issued identifiers map.
