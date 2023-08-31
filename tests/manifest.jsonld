@@ -23,6 +23,7 @@
       "@type": "@id",
       "@container": "@list"
     },
+    "hashAlgorithm": "rdfc:hashAlgorithm",
     "label": "rdfs:label",
     "name": "mf:name",
     "computationalComplexity": "rdfc:computationalComplexity",
@@ -854,6 +855,28 @@
       "computationalComplexity": "high",
       "approval": "rdft:Proposed",
       "action": "rdfc10/test074-in.nq"
+    },
+    {
+      "id": "#test075c",
+      "type": "rdfc:RDFC10EvalTest",
+      "name": "blank node - diamond (uses SHA-384)",
+      "comment": null,
+      "computationalComplexity": "low",
+      "hashAlgorithm": "SHA384",
+      "approval": "rdft:Proposed",
+      "action": "rdfc10/test075-in.nq",
+      "result": "rdfc10/test075-rdfc10.nq"
+    },
+    {
+      "id": "#test075m",
+      "type": "rdfc:RDFC10MapTest",
+      "name": "blank node - diamond (map test) (uses SHA-384)",
+      "comment": null,
+      "computationalComplexity": "low",
+      "hashAlgorithm": "SHA384",
+      "approval": "rdft:Proposed",
+      "action": "rdfc10/test075-in.nq",
+      "result": "rdfc10/test075-rdfc10map.json"
     }
   ]
 }
