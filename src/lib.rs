@@ -17,10 +17,14 @@ pub use crate::logger::YamlLayer;
 
 #[cfg(test)]
 mod tests {
-    use crate::{canonicalize, issue, CanonicalizationError};
+    use crate::{
+        canonicalize, canonicalize_with, issue, issue_with, CanonicalizationError,
+        CanonicalizationOptions,
+    };
     use oxrdf::Dataset;
     use oxttl::NQuadsParser;
     use serde::Deserialize;
+    use sha2::Sha384;
     use std::{
         collections::HashMap,
         fs::File,
@@ -56,6 +60,8 @@ mod tests {
         name: String,
         action: String,
         result: Option<String>,
+        #[serde(rename = "hashAlgorithm")]
+        hash_algorithm: Option<String>,
     }
 
     #[test]
@@ -70,6 +76,23 @@ mod tests {
         let manifest: TestManifest =
             serde_json::from_reader(BufReader::new(manifest_file)).unwrap();
 
+        let canonicalize_with_sha384 = |input_dataset: &Dataset| {
+            canonicalize_with::<Sha384>(
+                input_dataset,
+                &CanonicalizationOptions {
+                    hndq_call_limit: None,
+                },
+            )
+        };
+        let issue_with_sha384 = |input_dataset: &Dataset| {
+            issue_with::<Sha384>(
+                input_dataset,
+                &CanonicalizationOptions {
+                    hndq_call_limit: None,
+                },
+            )
+        };
+
         for entry in manifest.entries {
             let TestManifestEntry {
                 r#id: test_id,
@@ -77,6 +100,7 @@ mod tests {
                 name: test_name,
                 action: input_path,
                 result: output_path,
+                hash_algorithm,
                 ..
             } = entry;
 
@@ -89,7 +113,13 @@ mod tests {
 
             match test_type.as_str() {
                 "rdfc:RDFC10EvalTest" => {
-                    let canonicalized_document = canonicalize(&input_dataset).unwrap();
+                    let canonicalized_document = match hash_algorithm {
+                        None => canonicalize(&input_dataset).unwrap(),
+                        Some(h) if h == "SHA384" => {
+                            canonicalize_with_sha384(&input_dataset).unwrap()
+                        }
+                        Some(h) => panic!("invalid hashAlgorithm: {}", h),
+                    };
                     let mut output_file =
                         File::open(format!("tests/{}", output_path.unwrap())).unwrap();
                     let mut expected_output = String::new();
@@ -101,7 +131,12 @@ mod tests {
                     )
                 }
                 "rdfc:RDFC10MapTest" => {
-                    let issued_identifiers_map = issue(&input_dataset).unwrap();
+                    let issued_identifiers_map = match hash_algorithm {
+                        None => issue(&input_dataset).unwrap(),
+                        Some(h) if h == "SHA384" => issue_with_sha384(&input_dataset).unwrap(),
+                        Some(h) => panic!("invalid hashAlgorithm: {}", h),
+                    };
+
                     let output_file =
                         File::open(format!("tests/{}", output_path.unwrap())).unwrap();
                     let expected_output: HashMap<String, String> =
