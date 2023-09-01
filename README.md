@@ -21,7 +21,7 @@ Add the following dependencies into your Cargo.toml:
 
 ```toml
 [dependencies]
-rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.13.0" }
+rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.14.0" }
 oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once next version of oxrdf is published on crates.io
 oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once oxttl is published on crates.io
 ```
@@ -254,7 +254,7 @@ The YAML-formatted debug log can be obtained by enabling the `log` feature.
 
 ```toml
 [dependencies]
-rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.13.0", features = ["log"]  }
+rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.14.0", features = ["log"]  }
 oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once next version of oxrdf is published on crates.io
 oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once oxttl is published on crates.io
 ```
@@ -349,6 +349,11 @@ ca:
 ## Changelog
 <details>
   <summary>Click to expand</summary>
+
+### v0.14.0
+
+- enables selection of internal hash function
+- update `oxrdf` and `oxttl` to the latest ones (as a result, Rust needs to be 1.70 or higher)
 
 ### v0.13.0
 
