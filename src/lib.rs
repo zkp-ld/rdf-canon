@@ -157,4 +157,40 @@ mod tests {
             println!("PASSED: {} - {}", test_id, test_name);
         }
     }
+
+    #[test]
+    fn use_sha384() {
+        use crate::{canonicalize_with, CanonicalizationOptions};
+        use oxrdf::Dataset;
+        use oxttl::NQuadsParser;
+        use sha2::Sha384;
+        use std::io::Cursor;
+
+        let input = r#"_:e0 <http://example.org/vocab#next> _:e1 _:g .
+_:e0 <http://example.org/vocab#prev> _:e2 _:g .
+_:e1 <http://example.org/vocab#next> _:e2 _:g .
+_:e1 <http://example.org/vocab#prev> _:e0 _:g .
+_:e2 <http://example.org/vocab#next> _:e0 _:g .
+_:e2 <http://example.org/vocab#prev> _:e1 _:g .
+<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" _:g .
+"#;
+        let expected = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" _:c14n0 .
+_:c14n1 <http://example.org/vocab#next> _:c14n3 _:c14n0 .
+_:c14n1 <http://example.org/vocab#prev> _:c14n2 _:c14n0 .
+_:c14n2 <http://example.org/vocab#next> _:c14n1 _:c14n0 .
+_:c14n2 <http://example.org/vocab#prev> _:c14n3 _:c14n0 .
+_:c14n3 <http://example.org/vocab#next> _:c14n2 _:c14n0 .
+_:c14n3 <http://example.org/vocab#prev> _:c14n1 _:c14n0 .
+"#;
+
+        let input_quads = NQuadsParser::new()
+            .parse_from_read(Cursor::new(input))
+            .into_iter()
+            .map(|x| x.unwrap());
+        let input_dataset = Dataset::from_iter(input_quads);
+        let options = CanonicalizationOptions::default();
+        let canonicalized = canonicalize_with::<Sha384>(&input_dataset, &options).unwrap();
+
+        assert_eq!(canonicalized, expected);
+    }
 }

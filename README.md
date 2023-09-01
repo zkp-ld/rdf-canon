@@ -160,6 +160,52 @@ let issued_identifiers_map = issue(&input_dataset).unwrap();
 assert_eq!(issued_identifiers_map, expected);
 ```
 
+### Use Alternate Hash Function
+
+The [RDF Canonicalization algorithm version 1.0 (RDFC-1.0)](https://www.w3.org/TR/rdf-canon/) uses a hash function internally to determine the canonicalized dataset.
+While SHA-256 is defined as its default hash function, it also permits the use of alternate hash functions if necessary.
+If you want to use an internal hash function rather than SHA-256, you can use the `canonicalize_with` function with the desired hash as shown below.
+Here, we use SHA-384 instead of the default SHA-256.
+
+```rust
+use oxrdf::Dataset;
+use oxttl::NQuadsParser;
+use rdf_canon::{canonicalize_with, CanonicalizationOptions};
+use sha2::Sha384;
+use std::io::Cursor;
+
+let input = r#"_:e0 <http://example.org/vocab#next> _:e1 _:g .
+_:e0 <http://example.org/vocab#prev> _:e2 _:g .
+_:e1 <http://example.org/vocab#next> _:e2 _:g .
+_:e1 <http://example.org/vocab#prev> _:e0 _:g .
+_:e2 <http://example.org/vocab#next> _:e0 _:g .
+_:e2 <http://example.org/vocab#prev> _:e1 _:g .
+<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" _:g .
+"#;
+
+let expected = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" _:c14n0 .
+_:c14n1 <http://example.org/vocab#next> _:c14n3 _:c14n0 .
+_:c14n1 <http://example.org/vocab#prev> _:c14n2 _:c14n0 .
+_:c14n2 <http://example.org/vocab#next> _:c14n1 _:c14n0 .
+_:c14n2 <http://example.org/vocab#prev> _:c14n3 _:c14n0 .
+_:c14n3 <http://example.org/vocab#next> _:c14n2 _:c14n0 .
+_:c14n3 <http://example.org/vocab#prev> _:c14n1 _:c14n0 .
+"#;
+
+let input_quads = NQuadsParser::new()
+    .parse_from_read(Cursor::new(input))
+    .into_iter()
+    .map(|x| x.unwrap());
+let input_dataset = Dataset::from_iter(input_quads);
+let options = CanonicalizationOptions::default();
+let canonicalized = canonicalize_with::<Sha384>(&input_dataset, &options).unwrap();
+
+assert_eq!(canonicalized, expected);
+```
+
+Note that the output canonicalized dataset can be different depending on the choice of hash function;
+this is because the hash function affects the ordering of blank nodes, which in turn affects the output of the canonicalization algorithm.
+
 ### Protecting against poison dataset
 
 As mentioned in [https://www.w3.org/TR/rdf-canon/#dataset-poisoning](https://www.w3.org/TR/rdf-canon/#dataset-poisoning),
@@ -169,10 +215,40 @@ The default limit is set to 4000.
 If you wish to raise or lower this limit, you can specify the limit using the `canonicalize_with` function as shown below.
 
 ```rust
+use oxrdf::Dataset;
+use oxttl::NQuadsParser;
+use rdf_canon::{canonicalize_with, CanonicalizationOptions};
+use sha2::Sha256;
+use std::io::Cursor;
+
+let input = r#"_:e0 <http://example.org/vocab#next> _:e1 _:g .
+_:e0 <http://example.org/vocab#prev> _:e2 _:g .
+_:e1 <http://example.org/vocab#next> _:e2 _:g .
+_:e1 <http://example.org/vocab#prev> _:e0 _:g .
+_:e2 <http://example.org/vocab#next> _:e0 _:g .
+_:e2 <http://example.org/vocab#prev> _:e1 _:g .
+<urn:ex:s> <urn:ex:p> "\u0008\u0009\u000a\u000b\u000c\u000d\u0022\u005c\u007f" _:g .
+"#;
+let expected = r#"<urn:ex:s> <urn:ex:p> "\b\t\n\u000B\f\r\"\\\u007F" _:c14n0 .
+_:c14n1 <http://example.org/vocab#next> _:c14n2 _:c14n0 .
+_:c14n1 <http://example.org/vocab#prev> _:c14n3 _:c14n0 .
+_:c14n2 <http://example.org/vocab#next> _:c14n3 _:c14n0 .
+_:c14n2 <http://example.org/vocab#prev> _:c14n1 _:c14n0 .
+_:c14n3 <http://example.org/vocab#next> _:c14n1 _:c14n0 .
+_:c14n3 <http://example.org/vocab#prev> _:c14n2 _:c14n0 .
+"#;
+
+let input_quads = NQuadsParser::new()
+    .parse_from_read(Cursor::new(input))
+    .into_iter()
+    .map(|x| x.unwrap());
+let input_dataset = Dataset::from_iter(input_quads);
 let options = CanonicalizationOptions {
     hndq_call_limit: Some(10000),
 };
-let canonicalized = canonicalize_with(&input_dataset, &options).unwrap();    
+let canonicalized = canonicalize_with::<Sha256>(&input_dataset, &options).unwrap();
+
+assert_eq!(canonicalized, expected);
 ```
 
 ### Debug Logging Feature
