@@ -8,6 +8,8 @@ Please be aware that it is currently very unstable, and breaking changes may occ
 
 ## Prerequisites
 
+Please use Rust 1.70 or higher.
+
 This implementation relies on the upcoming version of [Oxrdf](https://github.com/oxigraph/oxigraph/tree/next) for handling RDF data structures.
 If you aim to canonicalize N-Quads documents rather than Oxrdf Datasets, you'll additionally require [Oxttl](https://github.com/oxigraph/oxigraph/tree/next) for N-Quads parsing.
 Be aware that these crates are currently only accessible in the `next` branch of Oxigraph.
@@ -20,8 +22,8 @@ Add the following dependencies into your Cargo.toml:
 ```toml
 [dependencies]
 rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.13.0" }
-oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once next version of oxrdf is published on crates.io
-oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once oxttl is published on crates.io
+oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once next version of oxrdf is published on crates.io
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once oxttl is published on crates.io
 ```
 
 You can then use the `canonicalize` function to transform Oxrdf `Dataset` into canonical N-Quads.
@@ -53,8 +55,7 @@ _:c14n3 <http://example.org/vocab#prev> _:c14n2 _:c14n0 .
 "#;
 
 let input_quads = NQuadsParser::new()
-    .parse_from_read(Cursor::new(input))
-    .into_iter()
+    .parse_read(Cursor::new(input))
     .map(|x| x.unwrap());
 let input_dataset = Dataset::from_iter(input_quads);
 let canonicalized = canonicalize(&input_dataset).unwrap();
@@ -94,8 +95,7 @@ _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 "#;
 
 let input_triples = NTriplesParser::new()
-    .parse_from_read(Cursor::new(input))
-    .into_iter()
+    .parse_read(Cursor::new(input))
     .map(|x| x.unwrap());
 let input_graph = Graph::from_iter(input_triples);
 let canonicalized = canonicalize_graph(&input_graph).unwrap();
@@ -151,8 +151,7 @@ let expected = HashMap::from([
 ]);
 
 let input_quads = NQuadsParser::new()
-    .parse_from_read(Cursor::new(input))
-    .into_iter()
+    .parse_read(Cursor::new(input))
     .map(|x| x.unwrap());
 let input_dataset = Dataset::from_iter(input_quads);
 let issued_identifiers_map = issue(&input_dataset).unwrap();
@@ -193,8 +192,7 @@ _:c14n3 <http://example.org/vocab#prev> _:c14n1 _:c14n0 .
 "#;
 
 let input_quads = NQuadsParser::new()
-    .parse_from_read(Cursor::new(input))
-    .into_iter()
+    .parse_read(Cursor::new(input))
     .map(|x| x.unwrap());
 let input_dataset = Dataset::from_iter(input_quads);
 let options = CanonicalizationOptions::default();
@@ -239,8 +237,7 @@ _:c14n3 <http://example.org/vocab#prev> _:c14n2 _:c14n0 .
 "#;
 
 let input_quads = NQuadsParser::new()
-    .parse_from_read(Cursor::new(input))
-    .into_iter()
+    .parse_read(Cursor::new(input))
     .map(|x| x.unwrap());
 let input_dataset = Dataset::from_iter(input_quads);
 let options = CanonicalizationOptions {
@@ -258,8 +255,8 @@ The YAML-formatted debug log can be obtained by enabling the `log` feature.
 ```toml
 [dependencies]
 rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.13.0", features = ["log"]  }
-oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once next version of oxrdf is published on crates.io
-oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "922023b" } # will be fixed once oxttl is published on crates.io
+oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once next version of oxrdf is published on crates.io
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once oxttl is published on crates.io
 ```
 
 ```rust
@@ -291,8 +288,7 @@ _:c14n1 <http://example.com/#p2> "Foo" .
 
     // get dataset from N-Quads document
     let input_quads = NQuadsParser::new()
-        .parse_from_read(Cursor::new(input))
-        .into_iter()
+        .parse_read(Cursor::new(input))
         .map(|x| x.unwrap());
     let input_dataset = Dataset::from_iter(input_quads);
 
