@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.1] - 2023-12-20
+
+- Added an explicit lifetime name to an associated constant to align with https://github.com/rust-lang/rust/issues/115010
+- Updated `itertools` dependency
+- Separeted CHANGELOG from README
+
 ## [0.14.0] - 2023-09-01
 
 - enables selection of internal hash function
