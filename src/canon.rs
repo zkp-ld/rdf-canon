@@ -31,7 +31,7 @@ struct CanonicalizationState {
 }
 
 impl CanonicalizationState {
-    const DEFAULT_CANONICAL_IDENTIFER_PREFIX: &str = "c14n";
+    const DEFAULT_CANONICAL_IDENTIFER_PREFIX: &'static str = "c14n";
 
     fn new() -> CanonicalizationState {
         CanonicalizationState {
