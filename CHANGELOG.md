@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.15.0-alpha.1] - 2024-01-08
+
+- Updated `oxrdf` and `oxttl` from GitHub source to pre-release version on crates.io
+- Published pre-release version on crates.io
+
 ## [0.14.1] - 2023-12-20
 
 - Added an explicit lifetime name to an associated constant to align with https://github.com/rust-lang/rust/issues/115010
