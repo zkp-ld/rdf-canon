@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.15.0-alpha.2] - 2024-01-09
+
+- Updated README
+
 ## [0.15.0-alpha.1] - 2024-01-08
 
 - Updated `oxrdf` and `oxttl` from GitHub source to pre-release version on crates.io
