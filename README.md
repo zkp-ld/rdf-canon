@@ -10,10 +10,9 @@ Please be aware that it is currently very unstable, and breaking changes may occ
 
 Please use Rust 1.70 or higher.
 
-This implementation relies on the upcoming version of [Oxrdf](https://github.com/oxigraph/oxigraph/tree/next) for handling RDF data structures.
-If you aim to canonicalize N-Quads documents rather than Oxrdf Datasets, you'll additionally require [Oxttl](https://github.com/oxigraph/oxigraph/tree/next) for N-Quads parsing.
-Be aware that these crates are currently only accessible in the `next` branch of Oxigraph.
-We plan to update these Git dependencies once Oxigraph officially releases them on [crates.io](https://crates.io).
+This implementation relies on the pre-release version of [Oxrdf](https://crates.io/crates/oxrdf) for handling RDF data structures.
+If you aim to canonicalize N-Quads documents rather than Oxrdf Datasets, you'll additionally require [Oxttl](https://crates.io/crates/oxttl) for N-Quads parsing.
+Be aware that these crates are currently only available as pre-release versions.
 
 ## Usage
 
@@ -21,9 +20,9 @@ Add the following dependencies into your Cargo.toml:
 
 ```toml
 [dependencies]
-rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.14.0" }
-oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once next version of oxrdf is published on crates.io
-oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once oxttl is published on crates.io
+rdf-canon = "0.15.0-alpha.2"
+oxrdf = "0.2.0-alpha.1"
+oxttl = "0.1.0-alpha.1"
 ```
 
 You can then use the `canonicalize` function to transform Oxrdf `Dataset` into canonical N-Quads.
@@ -254,9 +253,9 @@ The YAML-formatted debug log can be obtained by enabling the `log` feature.
 
 ```toml
 [dependencies]
-rdf-canon = { git = "https://github.com/zkp-ld/rdf-canon.git", version = "0.14.0", features = ["log"]  }
-oxrdf = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once next version of oxrdf is published on crates.io
-oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "f10e5a4" } # will be fixed once oxttl is published on crates.io
+rdf-canon = { version = "0.15.0-alpha.2", features = ["log"] }
+oxrdf = "0.2.0-alpha.1"
+oxttl = "0.1.0-alpha.1"
 ```
 
 ```rust
