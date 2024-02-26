@@ -20,7 +20,7 @@ Add the following dependencies into your Cargo.toml:
 
 ```toml
 [dependencies]
-rdf-canon = "0.15.0-alpha.3"
+rdf-canon = "0.15.0-alpha.4"
 oxrdf = "0.2.0-alpha.2"
 oxttl = "0.1.0-alpha.2"
 ```
@@ -253,7 +253,7 @@ The YAML-formatted debug log can be obtained by enabling the `log` feature.
 
 ```toml
 [dependencies]
-rdf-canon = { version = "0.15.0-alpha.3", features = ["log"] }
+rdf-canon = { version = "0.15.0-alpha.4", features = ["log"] }
 oxrdf = "0.2.0-alpha.2"
 oxttl = "0.1.0-alpha.2"
 ```
