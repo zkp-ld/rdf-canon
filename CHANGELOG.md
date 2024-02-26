@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.0-alpha.3] - 2024-02-26
+
+- Added two tests from w3c/rdf-canon
+- Updated test manifest
+- Updated `oxrdf` and `oxttl` dependency
+
 ## [0.15.0-alpha.2] - 2024-01-09
 
 - Updated README
