@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.15.0-alpha.4] - 2024-02-26
+
+- Added a test feature for generating W3C EARL test report
+
 ## [0.15.0-alpha.3] - 2024-02-26
 
 - Added two tests from w3c/rdf-canon

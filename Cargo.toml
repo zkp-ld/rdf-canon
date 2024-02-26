@@ -1,7 +1,7 @@
 [package]
 name = "rdf-canon"
 authors = ["yamdan"]
-version = "0.15.0-alpha.3"
+version = "0.15.0-alpha.4"
 edition = "2021"
 description = "A Rust implementation of the RDF Dataset Canonicalization algorithm version 1.0 (RDFC-1.0) compatible with Oxigraph and Oxrdf."
 homepage = "https://github.com/zkp-ld/rdf-canon"
@@ -24,6 +24,8 @@ tracing-subscriber = { version = "0.3", optional = true }
 oxttl = "0.1.0-alpha.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+chrono = "0.4"
 
 [features]
 log = ["tracing-subscriber"]
+earl-reporting = []

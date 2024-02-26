@@ -38,6 +38,9 @@ mod tests {
     #[cfg(feature = "log")]
     use tracing_subscriber::prelude::*;
 
+    #[cfg(feature = "earl-reporting")]
+    use chrono;
+
     #[cfg(feature = "log")]
     const INDENT_WIDTH: usize = 2;
 
@@ -69,6 +72,11 @@ mod tests {
         #[cfg(feature = "log")]
         init_logger(tracing::Level::INFO);
         // init_logger(tracing::Level::DEBUG);
+
+        #[cfg(feature = "earl-reporting")]
+        let (report_header, get_report) = setup_earl_reporting();
+        #[cfg(feature = "earl-reporting")]
+        println!("{}", report_header);
 
         const MANIFEST_PATH: &str = "tests/manifest.jsonld";
 
@@ -153,7 +161,10 @@ mod tests {
                 _ => panic!("test type {} is not supported", test_type),
             }
 
-            println!("PASSED: {} - {}", test_id, test_name);
+            // println!("PASSED: {} - {}", test_id, test_name);
+
+            #[cfg(feature = "earl-reporting")]
+            println!("{}", get_report(test_id));
         }
     }
 
@@ -190,5 +201,73 @@ _:c14n3 <http://example.org/vocab#prev> _:c14n1 _:c14n0 .
         let canonicalized = canonicalize_with::<Sha384>(&input_dataset, &options).unwrap();
 
         assert_eq!(canonicalized, expected);
+    }
+
+    #[cfg(feature = "earl-reporting")]
+    fn setup_earl_reporting() -> (String, impl Fn(String) -> String) {
+        const DEVELOPER_ID: &str = "https://github.com/yamdan";
+        const DEVELOPER_NAME: &str = "Dan Yamamoto";
+
+        const SOFTWARE_ID: &str = "https://github.com/zkp-ld/rdf-canon";
+        const SOFTWARE_NAME: &str = "zkp-ld/rdf-canon";
+        const SOFTWARE_CREATED: &str = "2024-02-26";
+        const SOFTWARE_PROGRAMMING_LANGUAGE: &str = "Rust";
+
+        const SOFTWARE_VERSION: &str = env!("CARGO_PKG_VERSION");
+        let software_short_name_with_version = format!("{SOFTWARE_NAME}-{SOFTWARE_VERSION}");
+        const SOFTWARE_DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
+        const SOFTWARE_HOMEPAGE: &str = env!("CARGO_PKG_HOMEPAGE");
+
+        let now = chrono::Utc::now();
+        let now_date: String = now.format("%Y-%m-%d").to_string();
+        let now_datetime: String = now.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+        let report_header = format!(
+            r#"@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dc:   <http://purl.org/dc/terms/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix doap: <http://usefulinc.com/ns/doap#> .
+@prefix earl: <http://www.w3.org/ns/earl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<> foaf:primaryTopic <{SOFTWARE_ID}> ;
+  dc:issued "{now_date}"^^xsd:date ;
+  foaf:maker <{DEVELOPER_ID}> .
+
+<{SOFTWARE_ID}> a doap:Project ;
+  doap:name                 "{SOFTWARE_NAME}" ;
+  doap:release              [ doap:name     "{software_short_name_with_version}" ;
+                              doap:revision "{SOFTWARE_VERSION}" ;
+                              doap:created  "{SOFTWARE_CREATED}"^^xsd:date ;
+                            ] ;
+  doap:developer            <{DEVELOPER_ID}> ;
+  doap:description          "{SOFTWARE_DESCRIPTION}"@en ;
+  doap:programming-language "{SOFTWARE_PROGRAMMING_LANGUAGE}" ;
+  doap:homepage             <{SOFTWARE_HOMEPAGE}> ;
+  doap:implements           <https://www.w3.org/TR/rdf-canon/> .
+
+<{DEVELOPER_ID}> a foaf:Person, earl:Assertor ;
+  foaf:name "{DEVELOPER_NAME}" .
+"#
+        );
+
+        let get_report = move |test_id| {
+            format!(
+                r#"[ a               earl:Assertion ;
+  earl:assertedBy <{DEVELOPER_ID}> ;
+  earl:subject    <{SOFTWARE_ID}> ;
+  earl:test       <https://w3c.github.io/rdf-canon/tests/manifest{test_id}> ;
+  earl:result     [ a            earl:TestResult ;
+                    earl:outcome earl:passed ;
+                    dc:date      "{now_datetime}"^^xsd:dateTime 
+                  ] ;
+  earl:mode     earl:automatic 
+] .
+"#
+            )
+        };
+
+        return (report_header, get_report);
     }
 }
