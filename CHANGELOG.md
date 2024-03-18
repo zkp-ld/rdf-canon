@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.15.0-alpha.5] - 2024-03-18
+
+- Updated `oxrdf` and `oxttl` dependencies
+
 ## [0.15.0-alpha.4] - 2024-02-26
 
 - Added a test feature for generating W3C EARL test report
