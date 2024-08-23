@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.15.0-alpha.6] - 2024-08-23
+
+- Updated `oxrdf`, `oxttl`, and `itertools` dependencies
+
 ## [0.15.0-alpha.5] - 2024-03-18
 
 - Updated `oxrdf` and `oxttl` dependencies
