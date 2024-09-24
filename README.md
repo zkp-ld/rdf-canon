@@ -10,9 +10,8 @@ Please be aware that it is currently very unstable, and breaking changes may occ
 
 Please use Rust 1.70 or higher.
 
-This implementation relies on the pre-release version of [Oxrdf](https://crates.io/crates/oxrdf) for handling RDF data structures.
+This implementation relies on [Oxrdf](https://crates.io/crates/oxrdf) for handling RDF data structures.
 If you aim to canonicalize N-Quads documents rather than Oxrdf Datasets, you'll additionally require [Oxttl](https://crates.io/crates/oxttl) for N-Quads parsing.
-Be aware that these crates are currently only available as pre-release versions.
 
 ## Usage
 
@@ -20,9 +19,9 @@ Add the following dependencies into your Cargo.toml:
 
 ```toml
 [dependencies]
-rdf-canon = "0.15.0-alpha.6"
-oxrdf = "0.2.0-alpha.6"
-oxttl = "0.1.0-alpha.7"
+rdf-canon = "0.15.0"
+oxrdf = "0.2.0"
+oxttl = "0.1.0"
 ```
 
 You can then use the `canonicalize` function to transform Oxrdf `Dataset` into canonical N-Quads.
@@ -54,7 +53,7 @@ _:c14n3 <http://example.org/vocab#prev> _:c14n2 _:c14n0 .
 "#;
 
 let input_quads = NQuadsParser::new()
-    .parse_read(Cursor::new(input))
+    .for_reader(Cursor::new(input))
     .map(|x| x.unwrap());
 let input_dataset = Dataset::from_iter(input_quads);
 let canonicalized = canonicalize(&input_dataset).unwrap();
@@ -94,7 +93,7 @@ _:c14n2 <http://example.org/vocab#prev> _:c14n0 .
 "#;
 
 let input_triples = NTriplesParser::new()
-    .parse_read(Cursor::new(input))
+    .for_reader(Cursor::new(input))
     .map(|x| x.unwrap());
 let input_graph = Graph::from_iter(input_triples);
 let canonicalized = canonicalize_graph(&input_graph).unwrap();
@@ -150,7 +149,7 @@ let expected = HashMap::from([
 ]);
 
 let input_quads = NQuadsParser::new()
-    .parse_read(Cursor::new(input))
+    .for_reader(Cursor::new(input))
     .map(|x| x.unwrap());
 let input_dataset = Dataset::from_iter(input_quads);
 let issued_identifiers_map = issue(&input_dataset).unwrap();
@@ -191,7 +190,7 @@ _:c14n3 <http://example.org/vocab#prev> _:c14n1 _:c14n0 .
 "#;
 
 let input_quads = NQuadsParser::new()
-    .parse_read(Cursor::new(input))
+    .for_reader(Cursor::new(input))
     .map(|x| x.unwrap());
 let input_dataset = Dataset::from_iter(input_quads);
 let options = CanonicalizationOptions::default();
@@ -236,7 +235,7 @@ _:c14n3 <http://example.org/vocab#prev> _:c14n2 _:c14n0 .
 "#;
 
 let input_quads = NQuadsParser::new()
-    .parse_read(Cursor::new(input))
+    .for_reader(Cursor::new(input))
     .map(|x| x.unwrap());
 let input_dataset = Dataset::from_iter(input_quads);
 let options = CanonicalizationOptions {
@@ -253,9 +252,9 @@ The YAML-formatted debug log can be obtained by enabling the `log` feature.
 
 ```toml
 [dependencies]
-rdf-canon = { version = "0.15.0-alpha.6", features = ["log"] }
-oxrdf = "0.2.0-alpha.6"
-oxttl = "0.1.0-alpha.7"
+rdf-canon = { version = "0.15.0", features = ["log"] }
+oxrdf = "0.2.0"
+oxttl = "0.1.0"
 ```
 
 ```rust
@@ -287,7 +286,7 @@ _:c14n1 <http://example.com/#p2> "Foo" .
 
     // get dataset from N-Quads document
     let input_quads = NQuadsParser::new()
-        .parse_read(Cursor::new(input))
+        .for_reader(Cursor::new(input))
         .map(|x| x.unwrap());
     let input_dataset = Dataset::from_iter(input_quads);
 
