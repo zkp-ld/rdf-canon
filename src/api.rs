@@ -40,7 +40,7 @@ use std::collections::HashMap;
 /// "#;
 ///
 /// let input_quads = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_dataset = Dataset::from_iter(input_quads);
 /// let canonicalized = canonicalize(&input_dataset).unwrap();
@@ -81,7 +81,7 @@ pub fn canonicalize(input_dataset: &Dataset) -> Result<String, CanonicalizationE
 /// "#;
 ///
 /// let input_triples = NTriplesParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_graph = Graph::from_iter(input_triples);
 /// let canonicalized = canonicalize_graph(&input_graph).unwrap();
@@ -122,7 +122,7 @@ pub fn canonicalize_graph(input_graph: &Graph) -> Result<String, Canonicalizatio
 /// "#;
 ///
 /// let input_quads: Vec<Quad> = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap())
 ///     .collect();
 /// let canonicalized = canonicalize_quads(&input_quads).unwrap();
@@ -170,7 +170,7 @@ pub struct CanonicalizationOptions {
 /// "#;
 ///
 /// let input_quads = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_dataset = Dataset::from_iter(input_quads);
 /// let options = CanonicalizationOptions {
@@ -220,7 +220,7 @@ pub fn canonicalize_with<D: Digest>(
 /// "#;
 ///
 /// let input_triples = NTriplesParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_graph = Graph::from_iter(input_triples);
 /// let options = CanonicalizationOptions {
@@ -270,7 +270,7 @@ pub fn canonicalize_graph_with<D: Digest>(
 /// "#;
 ///
 /// let input_quads: Vec<Quad> = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap())
 ///     .collect();
 /// let options = CanonicalizationOptions {
@@ -318,7 +318,7 @@ pub fn canonicalize_quads_with<D: Digest>(
 /// ]);
 ///
 /// let input_quads = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_dataset = Dataset::from_iter(input_quads);
 /// let issued_identifiers_map = issue(&input_dataset).unwrap();
@@ -357,7 +357,7 @@ pub fn issue(input_dataset: &Dataset) -> Result<HashMap<String, String>, Canonic
 /// ]);
 ///
 /// let input_triples = NTriplesParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_graph = Graph::from_iter(input_triples);
 /// let issued_identifiers_map = issue_graph(&input_graph).unwrap();
@@ -397,7 +397,7 @@ pub fn issue_graph(input_graph: &Graph) -> Result<HashMap<String, String>, Canon
 /// ]);
 ///
 /// let input_quads: Vec<Quad> = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap())
 ///     .collect();
 /// let issued_identifiers_map = issue_quads(&input_quads).unwrap();
@@ -439,7 +439,7 @@ pub fn issue_quads(input_quads: &[Quad]) -> Result<HashMap<String, String>, Cano
 /// ]);
 ///
 /// let input_quads = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_dataset = Dataset::from_iter(input_quads);
 /// let options = CanonicalizationOptions {
@@ -487,7 +487,7 @@ pub fn issue_with<D: Digest>(
 /// ]);
 ///
 /// let input_triples = NTriplesParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_graph = Graph::from_iter(input_triples);
 /// let options = CanonicalizationOptions {
@@ -541,7 +541,7 @@ pub fn issue_graph_with<D: Digest>(
 /// ]);
 ///
 /// let input_quads: Vec<Quad> = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap())
 ///     .collect();
 /// let options = CanonicalizationOptions {
@@ -597,12 +597,12 @@ pub fn issue_quads_with<D: Digest>(
 /// "#;
 ///
 /// let input_quads = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_dataset = Dataset::from_iter(input_quads);
 /// let labeled_dataset = relabel(&input_dataset, &issued_identifiers_map).unwrap();
 /// let expected_quads = NQuadsParser::new()
-///     .parse_read(Cursor::new(expected))
+///     .for_reader(Cursor::new(expected))
 ///     .map(|x| x.unwrap());
 /// let expected_dataset = Dataset::from_iter(expected_quads);
 ///
@@ -653,12 +653,12 @@ pub fn relabel(
 /// "#;
 ///
 /// let input_triples = NTriplesParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_graph = Graph::from_iter(input_triples);
 /// let labeled_graph = relabel_graph(&input_graph, &issued_identifiers_map).unwrap();
 /// let expected_triples = NTriplesParser::new()
-///     .parse_read(Cursor::new(expected))
+///     .for_reader(Cursor::new(expected))
 ///     .map(|x| x.unwrap());
 /// let expected_graph = Graph::from_iter(expected_triples);
 ///
@@ -709,12 +709,12 @@ pub fn relabel_graph(
 /// "#;
 ///
 /// let input_quads: Vec<Quad> = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap())
 ///     .collect();
 /// let labeled_quads = relabel_quads(&input_quads, &issued_identifiers_map).unwrap();
 /// let expected_quads: Vec<Quad> = NQuadsParser::new()
-///     .parse_read(Cursor::new(expected))
+///     .for_reader(Cursor::new(expected))
 ///     .map(|x| x.unwrap())
 ///     .collect();
 ///
@@ -844,13 +844,13 @@ fn relabel_blank_node(
 /// "#;
 ///
 /// let input_quads = NQuadsParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_dataset = Dataset::from_iter(input_quads);
 /// let labeled_dataset = relabel(&input_dataset, &issued_identifiers_map).unwrap();
 /// let canonicalized_quads = sort(&labeled_dataset);
 /// let expected_quads: Vec<Quad> = NQuadsParser::new()
-///     .parse_read(Cursor::new(expected))
+///     .for_reader(Cursor::new(expected))
 ///     .map(|x| x.unwrap())
 ///     .collect();
 ///
@@ -896,13 +896,13 @@ pub fn sort(dataset: &Dataset) -> Vec<Quad> {
 /// "#;
 ///
 /// let input_triples = NTriplesParser::new()
-///     .parse_read(Cursor::new(input))
+///     .for_reader(Cursor::new(input))
 ///     .map(|x| x.unwrap());
 /// let input_graph = Graph::from_iter(input_triples);
 /// let labeled_graph = relabel_graph(&input_graph, &issued_identifiers_map).unwrap();
 /// let canonicalized_triples = sort_graph(&labeled_graph);
 /// let expected_triples: Vec<Triple> = NTriplesParser::new()
-///     .parse_read(Cursor::new(expected))
+///     .for_reader(Cursor::new(expected))
 ///     .map(|x| x.unwrap())
 ///     .collect();
 ///

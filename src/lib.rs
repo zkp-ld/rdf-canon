@@ -114,7 +114,7 @@ mod tests {
 
             let input_file = File::open(format!("tests/{}", input_path)).unwrap();
             let input_quads = NQuadsParser::new()
-                .parse_read(BufReader::new(input_file))
+                .for_reader(BufReader::new(input_file))
                 .map(|x| x.unwrap());
             let input_dataset = Dataset::from_iter(input_quads);
 
@@ -194,7 +194,7 @@ _:c14n3 <http://example.org/vocab#prev> _:c14n1 _:c14n0 .
 "#;
 
         let input_quads = NQuadsParser::new()
-            .parse_read(Cursor::new(input))
+            .for_reader(Cursor::new(input))
             .map(|x| x.unwrap());
         let input_dataset = Dataset::from_iter(input_quads);
         let options = CanonicalizationOptions::default();
