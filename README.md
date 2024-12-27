@@ -19,9 +19,9 @@ Add the following dependencies into your Cargo.toml:
 
 ```toml
 [dependencies]
-rdf-canon = "0.15.0"
-oxrdf = "0.2.0"
-oxttl = "0.1.0"
+rdf-canon = "0.15.1"
+oxrdf = "0.2.3"
+oxttl = "0.1.4"
 ```
 
 You can then use the `canonicalize` function to transform Oxrdf `Dataset` into canonical N-Quads.
@@ -252,9 +252,9 @@ The YAML-formatted debug log can be obtained by enabling the `log` feature.
 
 ```toml
 [dependencies]
-rdf-canon = { version = "0.15.0", features = ["log"] }
-oxrdf = "0.2.0"
-oxttl = "0.1.0"
+rdf-canon = { version = "0.15.1", features = ["log"] }
+oxrdf = "0.2.3"
+oxttl = "0.1.4"
 ```
 
 ```rust
