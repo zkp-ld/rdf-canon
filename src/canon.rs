@@ -51,7 +51,7 @@ impl CanonicalizationState {
             if let SubjectRef::BlankNode(n) = &quad.subject {
                 self.blank_node_to_quads_map
                     .entry(n.as_str().to_string())
-                    .or_insert_with(Vec::<Quad>::new)
+                    .or_default()
                     .push(quad.into());
             }
             // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
@@ -60,7 +60,7 @@ impl CanonicalizationState {
             if let TermRef::BlankNode(n) = &quad.object {
                 self.blank_node_to_quads_map
                     .entry(n.as_str().to_string())
-                    .or_insert_with(Vec::<Quad>::new)
+                    .or_default()
                     .push(quad.into());
             }
             // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
@@ -69,7 +69,7 @@ impl CanonicalizationState {
             if let GraphNameRef::BlankNode(n) = &quad.graph_name {
                 self.blank_node_to_quads_map
                     .entry(n.as_str().to_string())
-                    .or_insert_with(Vec::<Quad>::new)
+                    .or_default()
                     .push(quad.into());
             }
         }
@@ -260,7 +260,7 @@ pub fn canonicalize_core<D: Digest>(
         state
             .hash_to_blank_node_map
             .entry(hash)
-            .or_insert_with(Vec::<String>::new)
+            .or_default()
             .push(n.clone());
     }
 
@@ -627,9 +627,9 @@ fn hash_related_blank_node<D: Digest>(
     let span_hrbn_3 = debug_span!("").entered();
 
     let identifier = match state.canonical_issuer.get(related) {
-        Some(id) => format!("_:{}", id),
+        Some(id) => format!("_:{id}"),
         None => match issuer.get(related) {
-            Some(id) => format!("_:{}", id),
+            Some(id) => format!("_:{id}"),
             // 4) Otherwise, append the result of the Hash First Degree Quads algorithm,
             // passing related to input.
             None => hash_first_degree_quads::<D>(state, related)?,
@@ -639,7 +639,7 @@ fn hash_related_blank_node<D: Digest>(
     #[cfg(feature = "log")]
     span_hrbn_3.exit();
 
-    let input = format!("{}{}", input, identifier);
+    let input = format!("{input}{identifier}");
 
     #[cfg(feature = "log")]
     debug!(indent = 1, "input: \"{}\"", input);
@@ -786,7 +786,7 @@ fn hash_n_degree_quads<D: Digest>(
                 // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
                 // adding an entry as necessary.
                 h_n.entry(hash)
-                    .or_insert_with(Vec::<String>::new)
+                    .or_default()
                     .push(bnode_id);
             };
         };
@@ -817,7 +817,7 @@ fn hash_n_degree_quads<D: Digest>(
                 // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
                 // adding an entry as necessary.
                 h_n.entry(hash)
-                    .or_insert_with(Vec::<String>::new)
+                    .or_default()
                     .push(bnode_id);
             };
         };
@@ -847,7 +847,7 @@ fn hash_n_degree_quads<D: Digest>(
                 // 3.1.2) Add a mapping of hash to the blank node identifier for component to Hn,
                 // adding an entry as necessary.
                 h_n.entry(hash)
-                    .or_insert_with(Vec::<String>::new)
+                    .or_default()
                     .push(bnode_id);
             };
         };
@@ -952,7 +952,7 @@ fn hash_n_degree_quads<D: Digest>(
                     // 5.4.4.1) If a canonical identifier has been issued for related by
                     // canonical issuer, append the string _:, followed by the canonical
                     // identifier for related, to path.
-                    path_vec.push(format!("_:{}", canonical_identifier));
+                    path_vec.push(format!("_:{canonical_identifier}"));
                 } else {
                     // 5.4.4.2) Otherwise:
                     // 5.4.4.2.1) If issuer copy has not issued an identifier for
