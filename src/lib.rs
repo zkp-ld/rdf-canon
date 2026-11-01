@@ -169,6 +169,32 @@ mod tests {
     }
 
     #[test]
+    fn blank_node_self_link_is_hashed_once() {
+        use crate::canonicalize;
+        use oxrdf::Dataset;
+        use oxttl::NQuadsParser;
+        use std::io::Cursor;
+
+        // _:a appears twice in its first quad, but the quad is one of the quads in which it
+        // appears, and its first-degree hash is taken over it once. Taken twice, the hash of _:a
+        // would sort after the hash of _:b.
+        let input = r#"_:a <http://a/p> _:a .
+_:b <http://a/p> "w" .
+"#;
+        let expected = r#"_:c14n0 <http://a/p> _:c14n0 .
+_:c14n1 <http://a/p> "w" .
+"#;
+
+        let input_quads = NQuadsParser::new()
+            .for_reader(Cursor::new(input))
+            .map(|x| x.unwrap());
+        let input_dataset = Dataset::from_iter(input_quads);
+        let canonicalized = canonicalize(&input_dataset).unwrap();
+
+        assert_eq!(canonicalized, expected);
+    }
+
+    #[test]
     fn use_sha384() {
         use crate::{canonicalize_with, CanonicalizationOptions};
         use oxrdf::Dataset;

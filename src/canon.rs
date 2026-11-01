@@ -49,29 +49,35 @@ impl CanonicalizationState {
             // entry for the blank node identifier identifier in the blank node to quads map,
             // creating a new entry if necessary.
             if let SubjectRef::BlankNode(n) = &quad.subject {
-                self.blank_node_to_quads_map
-                    .entry(n.as_str().to_string())
-                    .or_default()
-                    .push(quad.into());
+                self.add_quad_to_blank_node(n.as_str(), quad);
             }
             // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
             // entry for the blank node identifier identifier in the blank node to quads map,
             // creating a new entry if necessary.
             if let TermRef::BlankNode(n) = &quad.object {
-                self.blank_node_to_quads_map
-                    .entry(n.as_str().to_string())
-                    .or_default()
-                    .push(quad.into());
+                self.add_quad_to_blank_node(n.as_str(), quad);
             }
             // 2.1) For each blank node that is a component of Q, add a reference to Q from the map
             // entry for the blank node identifier identifier in the blank node to quads map,
             // creating a new entry if necessary.
             if let GraphNameRef::BlankNode(n) = &quad.graph_name {
-                self.blank_node_to_quads_map
-                    .entry(n.as_str().to_string())
-                    .or_default()
-                    .push(quad.into());
+                self.add_quad_to_blank_node(n.as_str(), quad);
             }
+        }
+    }
+
+    /// Adds a reference to `quad` from the map entry for `identifier`, unless the entry already
+    /// holds it. The entry is the list of quads in which the blank node appears, so a quad that
+    /// has the same blank node in more than one position is held once.
+    fn add_quad_to_blank_node(&mut self, identifier: &str, quad: QuadRef) {
+        let quads = self
+            .blank_node_to_quads_map
+            .entry(identifier.to_string())
+            .or_default();
+        // A quad's components are added one after another, so a quad already in the entry is
+        // its last element.
+        if quads.last().map(Quad::as_ref) != Some(quad) {
+            quads.push(quad.into());
         }
     }
 
@@ -1173,6 +1179,36 @@ mod tests {
         assert_eq!(canonical_issuer.issue("b99"), "c14n2".to_string());
         assert_eq!(canonical_issuer.issue("b1"), "c14n1".to_string());
         assert_eq!(canonical_issuer.issue("b0"), "c14n0".to_string());
+    }
+
+    #[test]
+    fn test_blank_node_to_quads_map_holds_each_quad_once() {
+        let mut state = CanonicalizationState::new();
+
+        let e0 = BlankNode::default();
+        let e0 = e0.as_ref();
+        let p = NamedNodeRef::new("http://example.com/#p").unwrap();
+        let mut input_dataset = Dataset::default();
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e0),
+            p,
+            TermRef::BlankNode(e0),
+            GraphNameRef::DefaultGraph,
+        ));
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e0),
+            p,
+            TermRef::BlankNode(e0),
+            GraphNameRef::BlankNode(e0),
+        ));
+
+        state.update_blank_node_to_quads_map(&input_dataset);
+
+        let quads = state
+            .get_quads_for_blank_node(&e0.as_str().to_string())
+            .unwrap();
+        assert_eq!(quads.len(), 2);
+        assert_ne!(quads[0], quads[1]);
     }
 
     #[test]
