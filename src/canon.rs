@@ -8,7 +8,10 @@ use oxrdf::{
     BlankNode, Dataset, Graph, GraphName, GraphNameRef, Quad, QuadRef, Subject, SubjectRef, Term,
     TermRef, TripleRef,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Display,
+};
 
 #[cfg(feature = "log")]
 use tracing::{debug, debug_span, info};
@@ -542,7 +545,7 @@ fn hash_first_degree_quads<D: Digest>(
             };
             let predicate = quad.predicate.clone();
 
-            Quad::new(subject, predicate, object, graph_name).to_string() + " .\n"
+            to_canonical_nquads(Quad::new(subject, predicate, object, graph_name)) + " .\n"
         })
         .collect::<Vec<String>>();
 
@@ -1139,25 +1142,42 @@ fn hash_n_degree_quads<D: Digest>(
 ///   identifiers map component of the canonicalized dataset.
 pub fn serialize(dataset: &Dataset) -> String {
     let mut ordered_dataset: Vec<QuadRef> = dataset.iter().collect();
-    ordered_dataset.sort_by_cached_key(|q| q.to_string());
+    ordered_dataset.sort_by_cached_key(|q| to_canonical_nquads(q));
     ordered_dataset
         .iter()
-        .map(|q| q.to_string() + " .\n")
+        .map(|q| to_canonical_nquads(q) + " .\n")
         .collect()
 }
 
 pub fn serialize_graph(graph: &Graph) -> String {
     let mut ordered_graph: Vec<TripleRef> = graph.iter().collect();
-    ordered_graph.sort_by_cached_key(|t| t.to_string());
+    ordered_graph.sort_by_cached_key(|t| to_canonical_nquads(t));
     ordered_graph
         .iter()
-        .map(|t| t.to_string() + " .\n")
+        .map(|t| to_canonical_nquads(t) + " .\n")
         .collect()
+}
+
+/// Writes a quad or a triple in canonical n-quads form, without the final " .".
+///
+/// oxrdf's `Display` writes U+FFFE and U+FFFF in a literal as the characters themselves. They do
+/// not match the Char production from XML 1.1, and within STRING_LITERAL_QUOTE canonical n-quads
+/// (A. A Canonical form of N-Quads) requires such characters to be represented by UCHAR, as
+/// `\uFFFE` and `\uFFFF`. Only a literal can hold them: IRIs and blank node labels exclude both.
+fn to_canonical_nquads(value: impl Display) -> String {
+    let nquads = value.to_string();
+    if nquads.contains(['\u{FFFE}', '\u{FFFF}']) {
+        nquads
+            .replace('\u{FFFE}', "\\uFFFE")
+            .replace('\u{FFFF}', "\\uFFFF")
+    } else {
+        nquads
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use oxrdf::{BlankNode, NamedNode, NamedNodeRef};
+    use oxrdf::{BlankNode, LiteralRef, NamedNode, NamedNodeRef};
     use sha2::Sha256;
 
     use super::*;
@@ -1173,6 +1193,31 @@ mod tests {
         assert_eq!(canonical_issuer.issue("b99"), "c14n2".to_string());
         assert_eq!(canonical_issuer.issue("b1"), "c14n1".to_string());
         assert_eq!(canonical_issuer.issue("b0"), "c14n0".to_string());
+    }
+
+    #[test]
+    fn test_hash_first_degree_quads_noncharacters() {
+        let mut state = CanonicalizationState::new();
+
+        let e0 = BlankNode::default();
+        let e0 = e0.as_ref();
+        let p = NamedNodeRef::new("http://example.com/#p").unwrap();
+        let mut input_dataset = Dataset::default();
+        input_dataset.insert(QuadRef::new(
+            SubjectRef::BlankNode(e0),
+            p,
+            LiteralRef::new_simple_literal("\u{FFFE}\u{FFFF}"),
+            GraphNameRef::DefaultGraph,
+        ));
+
+        state.update_blank_node_to_quads_map(&input_dataset);
+
+        // U+FFFE and U+FFFF are serialized as UCHARs.
+        let hash_e0 = hash_first_degree_quads::<Sha256>(&state, &e0.as_str().to_string());
+        assert_eq!(
+            hash_e0.unwrap(),
+            hash::<Sha256>("_:a <http://example.com/#p> \"\\uFFFE\\uFFFF\" .\n")
+        );
     }
 
     #[test]

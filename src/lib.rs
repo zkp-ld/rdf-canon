@@ -169,6 +169,31 @@ mod tests {
     }
 
     #[test]
+    fn noncharacters_are_written_as_uchar() {
+        use crate::canonicalize;
+        use oxrdf::Dataset;
+        use oxttl::NQuadsParser;
+        use std::io::Cursor;
+
+        // U+FFFE and U+FFFF do not match the Char production from XML 1.1, so canonical n-quads
+        // represents them by UCHAR.
+        let input = r#"<http://a/s> <http://a/p> "\uFFFE\uFFFF" .
+_:b <http://a/p> "\uFFFF\u0007" .
+"#;
+        let expected = r#"<http://a/s> <http://a/p> "\uFFFE\uFFFF" .
+_:c14n0 <http://a/p> "\uFFFF\u0007" .
+"#;
+
+        let input_quads = NQuadsParser::new()
+            .for_reader(Cursor::new(input))
+            .map(|x| x.unwrap());
+        let input_dataset = Dataset::from_iter(input_quads);
+        let canonicalized = canonicalize(&input_dataset).unwrap();
+
+        assert_eq!(canonicalized, expected);
+    }
+
+    #[test]
     fn use_sha384() {
         use crate::{canonicalize_with, CanonicalizationOptions};
         use oxrdf::Dataset;
